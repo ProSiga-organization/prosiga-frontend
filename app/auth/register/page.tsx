@@ -13,8 +13,8 @@ export default function RegisterPage() {
 
         <Card className="shadow-lg border-0">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl text-slate-900">Criar Conta</CardTitle>
-            <CardDescription className="text-slate-600">Preencha os dados para se cadastrar</CardDescription>
+            <CardTitle className="text-xl text-slate-900">Primeiro Acesso</CardTitle>
+            <CardDescription className="text-slate-600">Ative sua conta para continuar</CardDescription>
           </CardHeader>
           <CardContent>
             <RegisterForm />

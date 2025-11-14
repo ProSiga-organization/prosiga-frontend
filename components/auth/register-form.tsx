@@ -6,30 +6,58 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 
 export function RegisterForm() {
   const [formData, setFormData] = useState({
-    name: "",
+    cpf: "",
     email: "",
     password: "",
     confirmPassword: "",
-    userType: "",
-    registration: "",
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // Simulação de cadastro
-    setTimeout(() => {
-      router.push("/")
+    if (formData.password !== formData.confirmPassword) {
+      setError("As senhas não coincidem.")
       setIsLoading(false)
-    }, 1000)
+      return
+    }
+
+    try {
+      const response = await fetch("http://localhost:8000/usuarios/primeiro-acesso", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cpf: formData.cpf.replace(/[^\d]/g, ""), // Remove formatação do CPF
+          email: formData.email,
+          senha: formData.password,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Falha ao ativar a conta.")
+      }
+
+      // Sucesso! Redireciona para o login
+      alert("Conta ativada com sucesso! Você já pode fazer o login.")
+      router.push("/")
+      
+    } catch (err: any) {
+      setError(err.message || "Ocorreu um erro. Tente novamente.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleChange = (field: string, value: string) => {
@@ -38,15 +66,21 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="text-red-600 text-sm p-3 bg-red-50 border border-red-200 rounded-md">
+          {error}
+        </div>
+      )}
+      
       <div className="space-y-2">
-        <Label htmlFor="name" className="text-slate-700">
-          Nome Completo
+        <Label htmlFor="cpf" className="text-slate-700">
+          CPF
         </Label>
         <Input
-          id="name"
-          placeholder="Seu nome completo"
-          value={formData.name}
-          onChange={(e) => handleChange("name", e.target.value)}
+          id="cpf"
+          placeholder="Seu CPF (apenas números)"
+          value={formData.cpf}
+          onChange={(e) => handleChange("cpf", e.target.value)}
           required
           className="border-slate-200 focus:border-blue-500"
         />
@@ -54,7 +88,7 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="email" className="text-slate-700">
-          Email
+          Novo Email
         </Label>
         <Input
           id="email"
@@ -68,37 +102,8 @@ export function RegisterForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="userType" className="text-slate-700">
-          Tipo de Usuário
-        </Label>
-        <Select value={formData.userType} onValueChange={(value) => handleChange("userType", value)} required>
-          <SelectTrigger className="border-slate-200 focus:border-blue-500">
-            <SelectValue placeholder="Selecione seu tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="student">Aluno</SelectItem>
-            <SelectItem value="teacher">Professor</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="registration" className="text-slate-700">
-          {formData.userType === "student" ? "Matrícula" : "Registro"}
-        </Label>
-        <Input
-          id="registration"
-          placeholder={formData.userType === "student" ? "Número da matrícula" : "Número do registro"}
-          value={formData.registration}
-          onChange={(e) => handleChange("registration", e.target.value)}
-          required
-          className="border-slate-200 focus:border-blue-500"
-        />
-      </div>
-
-      <div className="space-y-2">
         <Label htmlFor="password" className="text-slate-700">
-          Senha
+          Nova Senha
         </Label>
         <Input
           id="password"
@@ -113,7 +118,7 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword" className="text-slate-700">
-          Confirmar Senha
+          Confirmar Nova Senha
         </Label>
         <Input
           id="confirmPassword"
@@ -127,7 +132,7 @@ export function RegisterForm() {
       </div>
 
       <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
-        {isLoading ? "Criando conta..." : "Criar Conta"}
+        {isLoading ? "Ativando conta..." : "Ativar Conta"}
       </Button>
     </form>
   )
