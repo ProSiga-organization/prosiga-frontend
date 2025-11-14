@@ -13,29 +13,72 @@ import { useRouter } from "next/navigation"
 export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [userType, setUserType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // Simulação de login - redireciona baseado no tipo de usuário
-    setTimeout(() => {
-      if (userType === "student") {
-        router.push("/dashboard/student")
-      } else if (userType === "teacher") {
-        router.push("/dashboard/teacher")
-      } else if (userType === "admin") {
-        router.push("/dashboard/admin")
+    try {
+      const formData = new URLSearchParams()
+      formData.append("username", email)
+      formData.append("password", password)
+
+      const loginResponse = await fetch("http://localhost:8001/login/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData,
+      })
+
+      if (!loginResponse.ok) {
+        throw new Error("Email ou senha incorretos, ou usuário não ativo.")
       }
+
+      const tokenData = await loginResponse.json()
+      const accessToken = tokenData.access_token
+
+      localStorage.setItem("authToken", accessToken)
+
+      const meResponse = await fetch("http://localhost:8001/login/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!meResponse.ok) {
+        throw new Error("Não foi possível obter os dados do usuário.")
+      }
+
+      const userData = await meResponse.json()
+
+      const userType = userData.tipo_usuario
+      if (userType === "aluno") {
+        router.push("/dashboard/student")
+      } else if (userType === "professor") {
+        router.push("/dashboard/teacher")
+      } else if (userType === "coordenador") {
+        router.push("/dashboard/admin")
+      } else {
+        throw new Error("Tipo de usuário desconhecido recebido da API.")
+      }
+    } catch (err: any) {
+      setError(err.message || "Ocorreu um erro. Tente novamente.")
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="text-red-600 text-sm p-3 bg-red-50 border border-red-200 rounded-md">
+          {error}
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="email" className="text-slate-700">
           Email
@@ -65,22 +108,7 @@ export function LoginForm() {
           className="border-slate-200 focus:border-blue-500"
         />
       </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="userType" className="text-slate-700">
-          Tipo de Usuário
-        </Label>
-        <Select value={userType} onValueChange={setUserType} required>
-          <SelectTrigger className="border-slate-200 focus:border-blue-500">
-            <SelectValue placeholder="Selecione seu tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="student">Aluno</SelectItem>
-            <SelectItem value="teacher">Professor</SelectItem>
-            <SelectItem value="admin">Administrador</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      
 
       <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
         {isLoading ? "Entrando..." : "Entrar"}

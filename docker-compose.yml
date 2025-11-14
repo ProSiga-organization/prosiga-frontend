@@ -1,0 +1,14 @@
+version: '3.8'
+
+networks:
+  prosiga_net:
+    external: true 
+
+services:
+  frontend:
+    build: .
+    container_name: prosiga-frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - prosiga_net
