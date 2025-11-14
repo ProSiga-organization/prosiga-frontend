@@ -9,14 +9,16 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Upload, Download, FileText, CheckCircle, AlertCircle } from "lucide-react"
 import Link from "next/link"
 
+interface UploadResult {
+  message: string
+  success: boolean
+  errors?: string[]
+}
+
 export default function UsersPage() {
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [uploadResult, setUploadResult] = useState<{
-    success: number
-    errors: number
-    total: number
-  } | null>(null)
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -29,21 +31,76 @@ export default function UsersPage() {
     if (!file) return
 
     setUploading(true)
-    // Simular upload
-    setTimeout(() => {
+    setUploadResult(null)
+
+    const authToken = localStorage.getItem("authToken")
+    if (!authToken) {
       setUploadResult({
-        success: 45,
-        errors: 2,
-        total: 47,
+        message: "Erro de autenticação. Por favor, faça login novamente.",
+        success: false,
       })
       setUploading(false)
+      return
+    }
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      const response = await fetch("http://localhost:8000/usuarios/upload-csv", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Status 201 (Created)
+        setUploadResult({
+          message: data.message || "Usuários cadastrados com sucesso!",
+          success: true,
+        })
+      } else if (response.status === 207) {
+        // Status 207 (Multi-Status) - Sucesso parcial com erros
+        setUploadResult({
+          message: data.detail || "Upload processado com erros.",
+          success: false, // Marcamos como 'false' para mostrar a caixa de alerta
+          errors: [data.detail], // O backend já formata a string de erros
+        })
+      } else {
+        // Outros erros (400, 403, 404...)
+        throw new Error(data.detail || "Falha ao processar o arquivo.")
+      }
+    } catch (err: any) {
+      setUploadResult({
+        message: err.message || "Erro de conexão. Tente novamente.",
+        success: false,
+      })
+    } finally {
+      setUploading(false)
       setFile(null)
-    }, 2000)
+    }
   }
 
   const handleDownloadTemplate = () => {
-    // Simular download do template CSV
-    alert("Baixando template CSV...")
+    const templateContent = "cpf,nome,matricula,tipo_usuario,codigo_curso\n" +
+                            "11122233301,Bruno Alves,20250002,aluno,CC\n" +
+                            "22233344402,Carla Dias,20250003,aluno,ES\n" +
+                            "33344455503,Daniel Faria,,professor,\n" +
+                            "44455566604,Fernanda Lima,,coordenador,"
+    
+    const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", "template_usuarios.csv")
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -80,14 +137,14 @@ export default function UsersPage() {
                 <ul className="list-disc list-inside space-y-1 text-sm text-slate-600">
                   <li>O arquivo deve estar no formato CSV (separado por vírgulas)</li>
                   <li>
-                    Colunas obrigatórias: <code className="bg-slate-100 px-1 rounded">nome</code>,{" "}
-                    <code className="bg-slate-100 px-1 rounded">email</code>,{" "}
-                    <code className="bg-slate-100 px-1 rounded">tipo</code> (aluno, professor ou admin),{" "}
-                    <code className="bg-slate-100 px-1 rounded">matricula</code>
+                    Colunas obrigatórias: <code className="bg-slate-100 px-1 rounded">cpf</code>,{" "}
+                    <code className="bg-slate-100 px-1 rounded">nome</code>,{" "}
+                    <code className="bg-slate-100 px-1 rounded">tipo_usuario</code> (aluno, professor ou coordenador)
                   </li>
-                  <li>Para alunos, adicione também: curso, semestre</li>
-                  <li>Para professores, adicione também: departamento</li>
-                  <li>A senha inicial será gerada automaticamente e enviada por email</li>
+                  <li>
+                    Para <code className="bg-slate-100 px-1 rounded">aluno</code>: <code className="bg-slate-100 px-1 rounded">matricula</code> e <code className="bg-slate-100 px-1 rounded">codigo_curso</code> são obrigatórios.
+                  </li>
+                  <li>A senha será definida pelo usuário no primeiro acesso.</li>
                 </ul>
               </div>
 
@@ -148,43 +205,28 @@ export default function UsersPage() {
 
           {/* Resultado */}
           {uploadResult && (
-            <Card>
+            <Card className={uploadResult.success ? "border-green-600 bg-green-50" : "border-red-600 bg-red-50"}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  {uploadResult.success ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  )}
                   Resultado do Upload
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-600">Total de Registros</p>
-                    <p className="text-2xl font-bold text-slate-900">{uploadResult.total}</p>
-                  </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-600">Cadastrados com Sucesso</p>
-                    <p className="text-2xl font-bold text-green-600">{uploadResult.success}</p>
-                  </div>
-                  <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-red-600">Erros</p>
-                    <p className="text-2xl font-bold text-red-600">{uploadResult.errors}</p>
-                  </div>
+                <div className={uploadResult.success ? "text-green-800" : "text-red-800"}>
+                  <p className="font-medium">{uploadResult.message}</p>
+                  {uploadResult.errors && (
+                    <ul className="list-disc list-inside mt-2 text-sm">
+                      {uploadResult.errors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-
-                {uploadResult.errors > 0 && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-red-900">Alguns registros não foram processados</p>
-                        <p className="text-sm text-red-700 mt-1">
-                          Verifique se todos os campos obrigatórios estão preenchidos corretamente e se não há emails
-                          duplicados.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}
@@ -197,11 +239,11 @@ export default function UsersPage() {
             <CardContent>
               <div className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto">
                 <pre className="text-sm">
-                  {`nome,email,tipo,matricula,curso,semestre,departamento
-João Silva,joao@email.com,aluno,2024001,Engenharia de Software,3,
-Maria Santos,maria@email.com,professor,PROF001,,,Ciência da Computação
-Carlos Lima,carlos@email.com,aluno,2024002,Sistemas de Informação,1,
-Ana Costa,ana@email.com,professor,PROF002,,,Matemática`}
+                  {`cpf,nome,matricula,tipo_usuario,codigo_curso
+11122233301,Bruno Alves,20250002,aluno,CC
+22233344402,Carla Dias,20250003,aluno,ES
+33344455503,Daniel Faria,,professor,
+44455566604,Fernanda Lima,,coordenador,`}
                 </pre>
               </div>
             </CardContent>
