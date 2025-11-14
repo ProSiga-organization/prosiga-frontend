@@ -1,73 +1,275 @@
 "use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { Download } from "lucide-react"
+import { Download, BookOpen, TrendingUp, CheckCircle, Clock } from "lucide-react"
 import Link from "next/link"
+import { useState, useEffect } from "react"
+import { Skeleton } from "@/components/ui/skeleton" // Importando o Skeleton
 
-// Dados simulados
-const studentData = {
-  name: "João Silva",
-  registration: "2024001",
-  course: "Engenharia de Software",
-  semester: "3º Semestre",
-  gpa: 8.5,
+// --- Interfaces para os dados da API ---
+interface AlunoData {
+  nome: string
+  matricula: string
+  curso?: { nome: string } // A API /me retorna id_curso, mas o /matriculas/me (com a turma) pode ter o nome
 }
 
-const enrolledSubjects = [
-  {
-    id: 1,
-    name: "Algoritmos e Estruturas de Dados",
-    code: "AED001",
-    professor: "Prof. Maria Santos",
-    schedule: "Seg/Qua 14:00-16:00",
-    grade: 8.7,
-    attendance: 92,
-    status: "Em andamento",
-  },
-  {
-    id: 2,
-    name: "Banco de Dados",
-    code: "BD001",
-    professor: "Prof. Carlos Lima",
-    schedule: "Ter/Qui 16:00-18:00",
-    grade: 9.2,
-    attendance: 88,
-    status: "Em andamento",
-  },
-  {
-    id: 3,
-    name: "Engenharia de Software",
-    code: "ES001",
-    professor: "Prof. Ana Costa",
-    schedule: "Sex 08:00-12:00",
-    grade: 7.8,
-    attendance: 95,
-    status: "Em andamento",
-  },
-]
+interface IraData {
+  ira: number | null
+}
 
-const schedule = [
-  { day: "Segunda", time: "14:00-16:00", subject: "Algoritmos e Estruturas de Dados", room: "Lab 101" },
-  { day: "Terça", time: "16:00-18:00", subject: "Banco de Dados", room: "Sala 205" },
-  { day: "Quarta", time: "14:00-16:00", subject: "Algoritmos e Estruturas de Dados", room: "Lab 101" },
-  { day: "Quinta", time: "16:00-18:00", subject: "Banco de Dados", room: "Sala 205" },
-  { day: "Sexta", time: "08:00-12:00", subject: "Engenharia de Software", room: "Auditório" },
-]
+interface SemestreData {
+  semestre_atual: number
+}
+
+interface Disciplina {
+  id: number
+  nome: string
+  codigo: string
+}
+
+interface Professor {
+  nome: string
+}
+
+interface Turma {
+  id: number
+  horario: string
+  local: string
+  disciplina: Disciplina
+  professor: Professor
+}
+
+interface Matricula {
+  id_turma: number
+  status: string
+  nota_final: number | null
+  turma: Turma
+}
+
+// --- Componente de Loading (Skeleton) ---
+function DashboardLoadingSkeleton() {
+  return (
+    <div className="container mx-auto px-4 py-6 max-w-7xl">
+      {/* Cards de métricas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-600">Semestre Atual</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-1/4" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-600">IRA</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-1/4" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-600">Disciplinas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-1/4" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-600">Ações</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs e Lista */}
+      <Tabs defaultValue="subjects" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="subjects">Disciplinas</TabsTrigger>
+          <TabsTrigger value="schedule">Horários</TabsTrigger>
+        </TabsList>
+        <TabsContent value="subjects" className="space-y-4">
+          <div className="grid gap-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-5 w-1/3" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
 
 export function StudentDashboard() {
-  const handleDownloadHistory = () => {
-    alert("Baixando histórico acadêmico...")
+  const [aluno, setAluno] = useState<AlunoData | null>(null)
+  const [ira, setIra] = useState<IraData | null>(null)
+  const [semestre, setSemestre] = useState<SemestreData | null>(null)
+  const [matriculas, setMatriculas] = useState<Matricula[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      setError(null)
+      const token = localStorage.getItem("authToken")
+      if (!token) {
+        setError("Token não encontrado. Faça login novamente.")
+        setLoading(false)
+        // Idealmente, redirecionar para o login
+        // router.push("/") 
+        return
+      }
+
+      const headers = { Authorization: `Bearer ${token}` }
+      const apiBaseUrl = "http://localhost:8000"
+
+      try {
+        const [alunoRes, iraRes, semestreRes, matriculasRes] = await Promise.all([
+          fetch(`${apiBaseUrl}/usuarios/me`, { headers }),
+          fetch(`${apiBaseUrl}/usuarios/me/ira`, { headers }),
+          fetch(`${apiBaseUrl}/usuarios/me/semestre-atual`, { headers }),
+          fetch(`${apiBaseUrl}/matriculas/me`, { headers }),
+        ])
+
+        if (!alunoRes.ok || !iraRes.ok || !semestreRes.ok || !matriculasRes.ok) {
+          if (matriculasRes.status === 404) {
+            // Se o aluno não tiver matrículas, não é um erro fatal
+            setMatriculas([])
+          } else {
+             throw new Error("Falha ao buscar dados. Verifique sua conexão ou tente logar novamente.")
+          }
+        }
+
+        const alunoData = await alunoRes.json()
+        const iraData = await iraRes.json()
+        const semestreData = await semestreRes.json()
+        // Tratamento para 404 em matrículas
+        const matriculasData = matriculasRes.status === 404 ? [] : await matriculasRes.json()
+
+        setAluno(alunoData)
+        setIra(iraData)
+        setSemestre(semestreData)
+        setMatriculas(matriculasData)
+
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  const handleDownloadHistory = async () => {
+    const token = localStorage.getItem("authToken")
+    if (!token) return
+
+    try {
+      const response = await fetch("http://localhost:8000/usuarios/me/historico-pdf", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.ok) {
+        throw new Error("Não foi possível gerar o histórico.")
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      // Extrai o nome do arquivo do cabeçalho Content-Disposition
+      const disposition = response.headers.get('content-disposition')
+      let filename = `historico_${aluno?.matricula || 'aluno'}.pdf`
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+          const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+          const matches = filenameRegex.exec(disposition)
+          if (matches != null && matches[1]) {
+            filename = matches[1].replace(/['"]/g, '')
+          }
+      }
+      
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+
+    } catch (err: any) {
+      alert(`Erro ao baixar histórico: ${err.message}`)
+    }
   }
+
+  // Define os dados do cabeçalho
+  const headerTitle = aluno ? "Dashboard do Aluno" : "Carregando..."
+  const headerUserName = aluno ? aluno.nome : "Carregando..."
+  const headerUserInfo = aluno ? `${aluno.matricula} - ${aluno.curso?.nome || 'Curso não definido'}` : ""
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <DashboardHeader
+          title={headerTitle}
+          userName={headerUserName}
+          userInfo={headerUserInfo}
+        />
+        <DashboardLoadingSkeleton />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Card className="w-96 border-red-600 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-800">Erro ao carregar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-red-700">{error}</p>
+            <Button asChild className="w-full mt-4">
+              <Link href="/">Voltar para o Login</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // --- Processamento dos dados para o schedule (horários) ---
+  const schedule = matriculas.map(m => ({
+    day: m.turma.horario.split(" ")[0], // Simplista, assume "Seg/Qua 14:00-16:00"
+    time: m.turma.horario.split(" ").slice(1).join(" "),
+    subject: m.turma.disciplina.nome,
+    room: m.turma.local,
+  }))
+  // Nota: Isso pode criar duplicatas se o horário for "Seg/Qua". 
+  // Uma lógica mais robusta seria necessária para dividir os dias.
 
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader
-        title="Dashboard do Aluno"
-        userName={studentData.name}
-        userInfo={`${studentData.registration} - ${studentData.course}`}
+        title={headerTitle}
+        userName={headerUserName}
+        userInfo={headerUserInfo}
       />
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
@@ -78,7 +280,7 @@ export function StudentDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Semestre Atual</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{studentData.semester}</div>
+              <div className="text-2xl font-bold text-slate-900">{semestre?.semestre_atual || 0}º Semestre</div>
             </CardContent>
           </Card>
 
@@ -87,7 +289,7 @@ export function StudentDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">IRA</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{studentData.gpa}</div>
+              <div className="text-2xl font-bold text-slate-900">{ira?.ira?.toFixed(2) || "N/A"}</div>
             </CardContent>
           </Card>
 
@@ -96,7 +298,7 @@ export function StudentDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Disciplinas</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{enrolledSubjects.length}</div>
+              <div className="text-2xl font-bold text-slate-900">{matriculas.length}</div>
             </CardContent>
           </Card>
 
@@ -124,19 +326,19 @@ export function StudentDashboard() {
 
           <TabsContent value="subjects" className="space-y-4">
             <div className="grid gap-4">
-              {enrolledSubjects.map((subject) => (
-                <Card key={subject.id}>
+              {matriculas.map((matricula) => (
+                <Card key={matricula.id_turma}>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg">{subject.name}</CardTitle>
+                        <CardTitle className="text-lg">{matricula.turma.disciplina.nome}</CardTitle>
                         <CardDescription>
-                          {subject.code} - {subject.professor}
+                          {matricula.turma.disciplina.codigo} - {matricula.turma.professor.nome}
                         </CardDescription>
                       </div>
                       <div className="flex gap-2">
-                        <Badge variant="secondary">{subject.status}</Badge>
-                        <Link href={`/student-class/${subject.id}`}>
+                        <Badge variant="secondary">{matricula.status}</Badge>
+                        <Link href={`/student-class/${matricula.id_turma}`}>
                           <Button size="sm" variant="outline">
                             Ver Turma
                           </Button>
@@ -145,10 +347,18 @@ export function StudentDashboard() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <p className="text-sm text-slate-600">Horário</p>
-                        <p className="font-medium">{subject.schedule}</p>
+                        <p className="font-medium">{matricula.turma.horario}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-600">Local</p>
+                        <p className="font-medium">{matricula.turma.local}</p>
+                      </div>
+                       <div>
+                        <p className="text-sm text-slate-600">Nota Final</p>
+                        <p className="font-medium">{matricula.nota_final?.toFixed(1) || "N/A"}</p>
                       </div>
                     </div>
                   </CardContent>
