@@ -31,6 +31,7 @@ export function RegisterForm() {
     }
 
     try {
+      // Chama o endpoint de "primeiro-acesso" do backend principal
       const response = await fetch("http://localhost:8000/usuarios/primeiro-acesso", {
         method: "POST",
         headers: {
@@ -46,7 +47,7 @@ export function RegisterForm() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.detail || "Falha ao ativar a conta.")
+        throw new Error(data.detail || "Falha ao ativar a conta. Verifique seu CPF ou se a conta já está ativa.")
       }
 
       // Sucesso! Redireciona para o login
@@ -78,7 +79,7 @@ export function RegisterForm() {
         </Label>
         <Input
           id="cpf"
-          placeholder="Seu CPF (apenas números)"
+          placeholder="Seu CPF"
           value={formData.cpf}
           onChange={(e) => handleChange("cpf", e.target.value)}
           required
@@ -88,7 +89,7 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="email" className="text-slate-700">
-          Novo Email
+          Email
         </Label>
         <Input
           id="email"
@@ -103,7 +104,7 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="password" className="text-slate-700">
-          Nova Senha
+          Senha
         </Label>
         <Input
           id="password"
@@ -118,7 +119,7 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword" className="text-slate-700">
-          Confirmar Nova Senha
+          Confirmar Senha
         </Label>
         <Input
           id="confirmPassword"

@@ -6,7 +6,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -14,7 +13,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null) // Para feedback de erro
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,10 +22,13 @@ export function LoginForm() {
     setError(null)
 
     try {
+      // A API de login (prosiga-login/app/login/router.py) espera 
+      // dados de formulário (Form()).
       const formData = new URLSearchParams()
       formData.append("username", email)
       formData.append("password", password)
 
+      // 1. Chamar a API de login na porta 8001
       const loginResponse = await fetch("http://localhost:8001/login/", {
         method: "POST",
         headers: {
@@ -42,8 +44,10 @@ export function LoginForm() {
       const tokenData = await loginResponse.json()
       const accessToken = tokenData.access_token
 
+      // Salva o token no localStorage para ser usado em outras páginas
       localStorage.setItem("authToken", accessToken)
 
+      // 2. Com o token, chamar a API /me do *mesmo* serviço de login
       const meResponse = await fetch("http://localhost:8001/login/me", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -55,7 +59,8 @@ export function LoginForm() {
       }
 
       const userData = await meResponse.json()
-
+      
+      // 3. Redirecionar com base no 'tipo_usuario' retornado pela API
       const userType = userData.tipo_usuario
       if (userType === "aluno") {
         router.push("/dashboard/student")
@@ -108,7 +113,6 @@ export function LoginForm() {
           className="border-slate-200 focus:border-blue-500"
         />
       </div>
-      
 
       <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
         {isLoading ? "Entrando..." : "Entrar"}
