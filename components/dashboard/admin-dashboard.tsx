@@ -1,35 +1,81 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Calendar, BookOpen, FileText, Bell, Upload } from "lucide-react"
 import Link from "next/link"
+import { useState, useEffect } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Dados simulados
-const adminData = {
-  name: "Admin Sistema",
-  registration: "ADMIN001",
-  department: "Administração Acadêmica",
-  email: "admin@prosiga.edu.br",
+interface AdminData {
+  nome: string
+  email: string
+  tipo_usuario: string
 }
 
-const systemStats = {
-  totalStudents: 1247,
-  totalTeachers: 89,
-  totalSubjects: 156,
-  totalCourses: 12,
-  activeEnrollments: 3421,
-  currentPeriod: "2025.1",
+interface SystemStats {
+  totalStudents: number
+  totalTeachers: number
+  totalSubjects: number
+  totalCourses: number
+  activeEnrollments: number
+  currentPeriod: string
 }
 
 export function AdminDashboard() {
+  const [admin, setAdmin] = useState<AdminData | null>(null)
+  const [stats, setStats] = useState<SystemStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem("authToken")
+      if (!token) return 
+
+      const headers = { Authorization: `Bearer ${token}` }
+      const apiBaseUrl = "http://localhost:8000"
+
+      try {
+        // 1. Buscar dados do administrador
+        const meRes = await fetch("http://localhost:8001/login/me", { headers })
+        if (meRes.ok) setAdmin(await meRes.json())
+
+        // 2. Buscar estatísticas do sistema
+        const statsRes = await fetch(`${apiBaseUrl}/stats/dashboard`, { headers })
+        if (statsRes.ok) setStats(await statsRes.json())
+
+      } catch (error) {
+        console.error("Erro ao carregar dashboard:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="container mx-auto px-4 py-6 max-w-7xl">
+             <Skeleton className="h-20 w-full mb-8" />
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+             </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader
         title="Dashboard do Administrador"
-        userName={adminData.name}
-        userInfo={`${adminData.registration} - ${adminData.department}`}
+        userName={admin?.nome || "Administrador"}
+        userInfo={`${admin?.email || ""} - Coordenação`}
       />
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
@@ -40,7 +86,7 @@ export function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Alunos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{systemStats.totalStudents.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-slate-900">{stats?.totalStudents || 0}</div>
             </CardContent>
           </Card>
 
@@ -49,7 +95,7 @@ export function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Professores</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{systemStats.totalTeachers}</div>
+              <div className="text-2xl font-bold text-slate-900">{stats?.totalTeachers || 0}</div>
             </CardContent>
           </Card>
 
@@ -58,7 +104,7 @@ export function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Disciplinas</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{systemStats.totalSubjects}</div>
+              <div className="text-2xl font-bold text-slate-900">{stats?.totalSubjects || 0}</div>
             </CardContent>
           </Card>
 
@@ -67,16 +113,16 @@ export function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Cursos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{systemStats.totalCourses}</div>
+              <div className="text-2xl font-bold text-slate-900">{stats?.totalCourses || 0}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">Matrículas</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-600">Matrículas Ativas</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{systemStats.activeEnrollments.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-slate-900">{stats?.activeEnrollments || 0}</div>
             </CardContent>
           </Card>
 
@@ -85,7 +131,7 @@ export function AdminDashboard() {
               <CardTitle className="text-sm font-medium text-slate-600">Período Atual</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{systemStats.currentPeriod}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats?.currentPeriod || "N/A"}</div>
             </CardContent>
           </Card>
         </div>
@@ -103,9 +149,9 @@ export function AdminDashboard() {
                     </div>
                     <CardTitle className="text-lg">Períodos Letivos</CardTitle>
                   </div>
-                  <CardDescription className="mt-2">
+                  <p className="text-sm text-slate-500 mt-2">
                     Criar, editar e gerenciar períodos letivos. Controlar abertura e fechamento de matrículas.
-                  </CardDescription>
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" className="w-full bg-transparent">
@@ -124,9 +170,9 @@ export function AdminDashboard() {
                     </div>
                     <CardTitle className="text-lg">Gestão de Turmas</CardTitle>
                   </div>
-                  <CardDescription className="mt-2">
+                  <p className="text-sm text-slate-500 mt-2">
                     Criar e gerenciar turmas por período. Definir professores, vagas e critérios de aprovação.
-                  </CardDescription>
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" className="w-full bg-transparent">
@@ -145,9 +191,9 @@ export function AdminDashboard() {
                     </div>
                     <CardTitle className="text-lg">Matrícula Manual</CardTitle>
                   </div>
-                  <CardDescription className="mt-2">
+                  <p className="text-sm text-slate-500 mt-2">
                     Realizar matrículas excepcionais de alunos com justificativa, mesmo com restrições.
-                  </CardDescription>
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" className="w-full bg-transparent">
@@ -166,9 +212,9 @@ export function AdminDashboard() {
                     </div>
                     <CardTitle className="text-lg">Relatórios Gerenciais</CardTitle>
                   </div>
-                  <CardDescription className="mt-2">
+                  <p className="text-sm text-slate-500 mt-2">
                     Gerar relatórios de alunos, turmas, ocupação de vagas e histórico de disciplinas.
-                  </CardDescription>
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" className="w-full bg-transparent">
@@ -187,9 +233,9 @@ export function AdminDashboard() {
                     </div>
                     <CardTitle className="text-lg">Avisos da Coordenação</CardTitle>
                   </div>
-                  <CardDescription className="mt-2">
+                  <p className="text-sm text-slate-500 mt-2">
                     Criar e gerenciar avisos institucionais para cursos específicos ou toda a instituição.
-                  </CardDescription>
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" className="w-full bg-transparent">
@@ -208,9 +254,9 @@ export function AdminDashboard() {
                     </div>
                     <CardTitle className="text-lg">Cadastro de Usuários</CardTitle>
                   </div>
-                  <CardDescription className="mt-2">
+                  <p className="text-sm text-slate-500 mt-2">
                     Fazer upload de CSV com novos usuários (alunos, professores e administradores).
-                  </CardDescription>
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" className="w-full bg-transparent">
