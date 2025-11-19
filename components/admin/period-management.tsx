@@ -1,65 +1,60 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { PeriodModal } from "@/components/admin/period-modal"
-import { Calendar, Lock, Unlock, Edit, Trash2 } from "lucide-react"
+import { Calendar, Edit, Trash2, FileText, Users } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Dados simulados
-const periodsData = [
-  {
-    id: 1,
-    code: "2025.1",
-    name: "Primeiro Semestre de 2025",
-    startDate: "2025-02-01",
-    endDate: "2025-06-30",
-    enrollmentOpen: true,
-    enrollmentStart: "2024-12-01",
-    enrollmentEnd: "2025-01-31",
-    withdrawalOpen: true,
-    withdrawalStart: "2025-02-15",
-    withdrawalEnd: "2025-04-30",
-    status: "active",
-  },
-  {
-    id: 2,
-    code: "2024.2",
-    name: "Segundo Semestre de 2024",
-    startDate: "2024-08-01",
-    endDate: "2024-12-20",
-    enrollmentOpen: false,
-    enrollmentStart: "2024-06-01",
-    enrollmentEnd: "2024-07-31",
-    withdrawalOpen: false,
-    withdrawalStart: "2024-08-15",
-    withdrawalEnd: "2024-10-31",
-    status: "closed",
-  },
-  {
-    id: 3,
-    code: "2024.1",
-    name: "Primeiro Semestre de 2024",
-    startDate: "2024-02-01",
-    endDate: "2024-06-30",
-    enrollmentOpen: false,
-    enrollmentStart: "2023-12-01",
-    enrollmentEnd: "2024-01-31",
-    withdrawalOpen: false,
-    withdrawalStart: "2024-02-15",
-    withdrawalEnd: "2024-04-30",
-    status: "closed",
-  },
-]
+interface Periodo {
+  id: number
+  ano: number
+  semestre: number
+  inicio_matricula: string
+  fim_matricula: string
+  fim_trancamento: string
+}
 
 export function PeriodManagement() {
+  const [periods, setPeriods] = useState<Periodo[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [selectedPeriod, setSelectedPeriod] = useState<any>(null)
+  const [selectedPeriod, setSelectedPeriod] = useState<Periodo | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const handleEdit = (period: any) => {
+  const fetchPeriods = async () => {
+    const token = localStorage.getItem("authToken")
+    if (!token) return
+
+    setLoading(true)
+    try {
+      const response = await fetch("http://localhost:8000/periodos-letivos/", {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        // Ordena decrescente (mais recentes primeiro)
+        setPeriods(data.sort((a: Periodo, b: Periodo) => {
+          if (a.ano !== b.ano) return b.ano - a.ano
+          return b.semestre - a.semestre
+        }))
+      }
+    } catch (error) {
+      toast.error("Erro ao carregar períodos.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPeriods()
+  }, [])
+
+  const handleEdit = (period: Periodo) => {
     setSelectedPeriod(period)
     setShowModal(true)
   }
@@ -69,23 +64,94 @@ export function PeriodManagement() {
     setShowModal(true)
   }
 
+  const handleDelete = async (id: number) => {
+    if (!confirm("Tem certeza? Isso pode afetar turmas vinculadas.")) return
+
+    const token = localStorage.getItem("authToken")
+    try {
+      const response = await fetch(`http://localhost:8000/periodos-letivos/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!response.ok) throw new Error()
+      toast.success("Período removido.")
+      fetchPeriods()
+    } catch (error) {
+      toast.error("Erro ao remover período.")
+    }
+  }
+
+  // --- Funções de Relatório ---
+  const handleReport = async (periodId: number, type: 'ocupacao' | 'turmas-professor') => {
+    const token = localStorage.getItem("authToken")
+    const endpoint = type === 'ocupacao' ? 'relatorio-ocupacao' : 'relatorio-turmas-professor'
+    
+    try {
+      const response = await fetch(`http://localhost:8000/periodos-letivos/${periodId}/${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      if (!response.ok) throw new Error()
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `relatorio_${type}_${periodId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } catch (error) {
+      toast.error("Erro ao gerar relatório.")
+    }
+  }
+
+  // --- Helpers de Status ---
+  const getStatus = (p: Periodo) => {
+    const now = new Date()
+    const inicio = new Date(p.inicio_matricula)
+    // Assumindo que o semestre acaba 4 meses depois da matrícula (lógica simples para visualização)
+    // O ideal seria ter "data_fim_semestre" no backend, mas usaremos o que temos.
+    const fimEstimado = new Date(inicio)
+    fimEstimado.setMonth(fimEstimado.getMonth() + 5)
+
+    if (now >= inicio && now <= fimEstimado) return "Ativo"
+    if (now < inicio) return "Futuro"
+    return "Encerrado"
+  }
+
+  const isEnrollmentOpen = (p: Periodo) => {
+    const now = new Date()
+    return now >= new Date(p.inicio_matricula) && now <= new Date(p.fim_matricula)
+  }
+
+  if (loading && periods.length === 0) {
+    return (
+        <div className="min-h-screen bg-slate-50 p-8">
+            <Skeleton className="h-12 w-1/3 mb-8" />
+            <Skeleton className="h-48 w-full" />
+        </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader
         title="Gestão de Períodos Letivos"
-        userName="Admin Sistema"
-        userInfo="ADMIN001 - Administração Acadêmica"
+        userName="Administrador"
+        userInfo="Coordenação"
       />
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">Períodos Letivos</h2>
-            <p className="text-slate-600 mt-1">Gerencie os períodos acadêmicos e controle as matrículas</p>
+            <p className="text-slate-600 mt-1">Gerencie o calendário acadêmico</p>
           </div>
           <div className="flex gap-3">
             <Link href="/dashboard/admin">
-              <Button variant="outline">Voltar ao Dashboard</Button>
+              <Button variant="outline">Voltar</Button>
             </Link>
             <Button onClick={handleNew} className="bg-blue-600 hover:bg-blue-700">
               Novo Período
@@ -94,7 +160,11 @@ export function PeriodManagement() {
         </div>
 
         <div className="grid gap-4">
-          {periodsData.map((period) => (
+          {periods.map((period) => {
+            const status = getStatus(period)
+            const matriculaAberta = isEnrollmentOpen(period)
+            
+            return (
             <Card key={period.id}>
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -103,96 +173,80 @@ export function PeriodManagement() {
                       <Calendar className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">{period.code}</CardTitle>
-                      <CardDescription className="mt-1">{period.name}</CardDescription>
+                      <CardTitle className="text-xl">{period.ano}.{period.semestre}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {status === "Ativo" ? "Período Atual" : status}
+                      </CardDescription>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Badge variant={period.status === "active" ? "default" : "secondary"}>
-                      {period.status === "active" ? "Ativo" : "Encerrado"}
+                    <Badge variant={status === "Ativo" ? "default" : "secondary"}>
+                      {status}
                     </Badge>
                     <Badge
-                      variant={period.enrollmentOpen ? "default" : "secondary"}
-                      className={period.enrollmentOpen ? "bg-green-600" : ""}
+                      variant={matriculaAberta ? "default" : "secondary"}
+                      className={matriculaAberta ? "bg-green-600" : ""}
                     >
-                      {period.enrollmentOpen ? "Matrícula Aberta" : "Matrícula Fechada"}
-                    </Badge>
-                    <Badge
-                      variant={period.withdrawalOpen ? "default" : "secondary"}
-                      className={period.withdrawalOpen ? "bg-orange-600" : ""}
-                    >
-                      {period.withdrawalOpen ? "Trancamento Aberto" : "Trancamento Fechado"}
+                      {matriculaAberta ? "Matrícula Aberta" : "Matrícula Fechada"}
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
-                    <p className="text-sm text-slate-600">Início do Período</p>
-                    <p className="font-medium">{new Date(period.startDate).toLocaleDateString("pt-BR")}</p>
+                    <p className="text-sm text-slate-600">Período de Matrícula</p>
+                    <p className="font-medium">
+                      {new Date(period.inicio_matricula).toLocaleDateString("pt-BR")} até {new Date(period.fim_matricula).toLocaleDateString("pt-BR")}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Fim do Período</p>
-                    <p className="font-medium">{new Date(period.endDate).toLocaleDateString("pt-BR")}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Início das Matrículas</p>
-                    <p className="font-medium">{new Date(period.enrollmentStart).toLocaleDateString("pt-BR")}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Fim das Matrículas</p>
-                    <p className="font-medium">{new Date(period.enrollmentEnd).toLocaleDateString("pt-BR")}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Início dos Trancamentos</p>
-                    <p className="font-medium">{new Date(period.withdrawalStart).toLocaleDateString("pt-BR")}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Fim dos Trancamentos</p>
-                    <p className="font-medium">{new Date(period.withdrawalEnd).toLocaleDateString("pt-BR")}</p>
+                    <p className="text-sm text-slate-600">Limite para Trancamento</p>
+                    <p className="font-medium">
+                      {new Date(period.fim_trancamento).toLocaleDateString("pt-BR")}
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  {period.enrollmentOpen ? (
-                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 bg-transparent">
-                      <Lock className="h-4 w-4 mr-2" />
-                      Encerrar Matrícula
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 bg-transparent">
-                      <Unlock className="h-4 w-4 mr-2" />
-                      Abrir Matrícula
-                    </Button>
-                  )}
-                  {period.withdrawalOpen ? (
-                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 bg-transparent">
-                      <Lock className="h-4 w-4 mr-2" />
-                      Encerrar Trancamento
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" className="text-orange-600 border-orange-600 bg-transparent">
-                      <Unlock className="h-4 w-4 mr-2" />
-                      Abrir Trancamento
-                    </Button>
-                  )}
+                <div className="flex gap-2 pt-4 border-t">
                   <Button size="sm" variant="outline" onClick={() => handleEdit(period)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Editar
                   </Button>
-                  <Button size="sm" variant="outline" className="text-red-600 border-red-600 bg-transparent">
+                  
+                  <Button size="sm" variant="outline" onClick={() => handleReport(period.id, 'ocupacao')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Rel. Ocupação
+                  </Button>
+                  
+                  <Button size="sm" variant="outline" onClick={() => handleReport(period.id, 'turmas-professor')}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Rel. Professores
+                  </Button>
+
+                  <div className="flex-1"></div>
+
+                  <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handleDelete(period.id)}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Excluir
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          ))}
+          )})}
+
+          {periods.length === 0 && !loading && (
+             <p className="text-center text-slate-500 mt-8">Nenhum período cadastrado.</p>
+          )}
         </div>
       </main>
 
-      <PeriodModal open={showModal} onOpenChange={setShowModal} period={selectedPeriod} />
+      <PeriodModal 
+        open={showModal} 
+        onOpenChange={setShowModal} 
+        period={selectedPeriod} 
+        onSuccess={fetchPeriods}
+      />
     </div>
   )
 }

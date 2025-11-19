@@ -14,49 +14,87 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
+
+interface PeriodoBackend {
+  id?: number
+  ano: number
+  semestre: number
+  inicio_matricula: string
+  fim_matricula: string
+  fim_trancamento: string
+}
 
 interface PeriodModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  period?: any
+  period?: PeriodoBackend | null
+  onSuccess: () => void
 }
 
-export function PeriodModal({ open, onOpenChange, period }: PeriodModalProps) {
+export function PeriodModal({ open, onOpenChange, period, onSuccess }: PeriodModalProps) {
   const [formData, setFormData] = useState({
-    code: "",
-    name: "",
-    startDate: "",
-    endDate: "",
-    enrollmentStart: "",
-    enrollmentEnd: "",
+    ano: new Date().getFullYear(),
+    semestre: 1,
+    inicio_matricula: "",
+    fim_matricula: "",
+    fim_trancamento: "",
   })
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (period) {
       setFormData({
-        code: period.code,
-        name: period.name,
-        startDate: period.startDate,
-        endDate: period.endDate,
-        enrollmentStart: period.enrollmentStart,
-        enrollmentEnd: period.enrollmentEnd,
+        ano: period.ano,
+        semestre: period.semestre,
+        inicio_matricula: period.inicio_matricula,
+        fim_matricula: period.fim_matricula,
+        fim_trancamento: period.fim_trancamento,
       })
     } else {
       setFormData({
-        code: "",
-        name: "",
-        startDate: "",
-        endDate: "",
-        enrollmentStart: "",
-        enrollmentEnd: "",
+        ano: new Date().getFullYear(),
+        semestre: 1,
+        inicio_matricula: "",
+        fim_matricula: "",
+        fim_trancamento: "",
       })
     }
   }, [period, open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] Salvando período:", formData)
-    onOpenChange(false)
+    setLoading(true)
+    const token = localStorage.getItem("authToken")
+    
+    try {
+      const url = period 
+        ? `http://localhost:8000/periodos-letivos/${period.id}`
+        : "http://localhost:8000/periodos-letivos/"
+      
+      const method = period ? "PUT" : "POST"
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      })
+
+      if (!response.ok) throw new Error("Falha ao salvar período.")
+
+      toast.success(period ? "Período atualizado!" : "Período criado!")
+      onSuccess()
+      onOpenChange(false)
+
+    } catch (error) {
+      toast.error("Erro ao salvar.")
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -65,30 +103,32 @@ export function PeriodModal({ open, onOpenChange, period }: PeriodModalProps) {
         <DialogHeader>
           <DialogTitle>{period ? "Editar Período Letivo" : "Novo Período Letivo"}</DialogTitle>
           <DialogDescription>
-            {period ? "Edite as informações do período letivo" : "Preencha as informações do novo período letivo"}
+            Defina o ano, semestre e os prazos importantes.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="code">Código do Período *</Label>
+              <Label htmlFor="ano">Ano *</Label>
               <Input
-                id="code"
-                placeholder="Ex: 2025.1"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                id="ano"
+                type="number"
+                value={formData.ano}
+                onChange={(e) => setFormData({ ...formData, ano: parseInt(e.target.value) })}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="name">Nome do Período *</Label>
+              <Label htmlFor="semestre">Semestre *</Label>
               <Input
-                id="name"
-                placeholder="Ex: Primeiro Semestre de 2025"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                id="semestre"
+                type="number"
+                min="1"
+                max="2"
+                value={formData.semestre}
+                onChange={(e) => setFormData({ ...formData, semestre: parseInt(e.target.value) })}
                 required
               />
             </div>
@@ -96,58 +136,45 @@ export function PeriodModal({ open, onOpenChange, period }: PeriodModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startDate">Data de Início *</Label>
+              <Label htmlFor="inicio_matricula">Início das Matrículas *</Label>
               <Input
-                id="startDate"
+                id="inicio_matricula"
                 type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                value={formData.inicio_matricula}
+                onChange={(e) => setFormData({ ...formData, inicio_matricula: e.target.value })}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="endDate">Data de Término *</Label>
+              <Label htmlFor="fim_matricula">Fim das Matrículas *</Label>
               <Input
-                id="endDate"
+                id="fim_matricula"
                 type="date"
-                value={formData.endDate}
-                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                value={formData.fim_matricula}
+                onChange={(e) => setFormData({ ...formData, fim_matricula: e.target.value })}
                 required
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="enrollmentStart">Início das Matrículas *</Label>
-              <Input
-                id="enrollmentStart"
-                type="date"
-                value={formData.enrollmentStart}
-                onChange={(e) => setFormData({ ...formData, enrollmentStart: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="enrollmentEnd">Fim das Matrículas *</Label>
-              <Input
-                id="enrollmentEnd"
-                type="date"
-                value={formData.enrollmentEnd}
-                onChange={(e) => setFormData({ ...formData, enrollmentEnd: e.target.value })}
-                required
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="fim_trancamento">Prazo Final para Trancamento *</Label>
+            <Input
+              id="fim_trancamento"
+              type="date"
+              value={formData.fim_trancamento}
+              onChange={(e) => setFormData({ ...formData, fim_trancamento: e.target.value })}
+              required
+            />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              {period ? "Salvar Alterações" : "Criar Período"}
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={loading}>
+              {loading ? "Salvando..." : (period ? "Salvar Alterações" : "Criar Período")}
             </Button>
           </DialogFooter>
         </form>
