@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,66 +9,117 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { ClassModal } from "@/components/admin/class-modal"
-import { BookOpen, Edit, Trash2, Search, Users } from "lucide-react"
+import { BookOpen, Edit, Trash2, Search } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Dados simulados
-const classesData = [
-  {
-    id: 1,
-    code: "AED001-T01",
-    subject: "Algoritmos e Estruturas de Dados",
-    subjectCode: "AED001",
-    teacher: "Prof. Maria Santos",
-    teacherId: 1,
-    period: "2025.1",
-    schedule: "Seg/Qua 14:00-16:00",
-    maxStudents: 30,
-    enrolledStudents: 28,
-    approvalCriteria: "Média >= 7.0",
-    department: "Ciência da Computação",
-  },
-  {
-    id: 2,
-    code: "CDI001-T01",
-    subject: "Cálculo Diferencial e Integral",
-    subjectCode: "CDI001",
-    teacher: "Prof. João Oliveira",
-    teacherId: 2,
-    period: "2025.1",
-    schedule: "Ter/Qui 10:00-12:00",
-    maxStudents: 50,
-    enrolledStudents: 45,
-    approvalCriteria: "Média >= 6.0",
-    department: "Matemática",
-  },
-  {
-    id: 3,
-    code: "FIS001-T01",
-    subject: "Física Geral",
-    subjectCode: "FIS001",
-    teacher: "Prof. Roberto Lima",
-    teacherId: 3,
-    period: "2025.1",
-    schedule: "Seg/Qua 08:00-10:00",
-    maxStudents: 35,
-    enrolledStudents: 32,
-    approvalCriteria: "Média >= 6.0 e Frequência >= 75%",
-    department: "Física",
-  },
-]
+interface Turma {
+  id: number
+  codigo: string
+  vagas: number
+  horario: string
+  local: string
+  id_periodo_letivo: number
+  id_disciplina: number
+  id_professor: number
+  disciplina: { nome: string; codigo: string }
+  professor: { nome: string }
+}
 
-const periodsData = ["2025.1", "2024.2", "2024.1"]
+interface Periodo {
+  id: number
+  ano: number
+  semestre: number
+}
 
 export function ClassManagement() {
   const [showModal, setShowModal] = useState(false)
-  const [selectedClass, setSelectedClass] = useState<any>(null)
-  const [selectedPeriod, setSelectedPeriod] = useState("2025.1")
+  const [selectedClass, setSelectedClass] = useState<Turma | null>(null)
+  
+  const [periods, setPeriods] = useState<Periodo[]>([])
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("")
+  
+  const [classes, setClasses] = useState<Turma[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [loading, setLoading] = useState(true)
 
-  const handleEdit = (classItem: any) => {
-    setSelectedClass(classItem)
-    setShowModal(true)
+  // 1. Carregar Períodos
+  useEffect(() => {
+    const fetchPeriods = async () => {
+      const token = localStorage.getItem("authToken")
+      if(!token) return
+
+      try {
+        const res = await fetch("http://localhost:8000/periodos-letivos/", {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const data: Periodo[] = await res.json()
+          // Ordenar decrescente
+          const sorted = data.sort((a, b) => (b.ano !== a.ano ? b.ano - a.ano : b.semestre - a.semestre))
+          setPeriods(sorted)
+          if(sorted.length > 0) setSelectedPeriodId(sorted[0].id.toString())
+        }
+      } catch(err) { console.error(err) }
+    }
+    fetchPeriods()
+  }, [])
+
+  // 2. Carregar Turmas (quando muda o período ou busca)
+  const fetchClasses = async () => {
+    const token = localStorage.getItem("authToken")
+    if(!token || !selectedPeriodId) return
+
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.append("id_periodo_letivo", selectedPeriodId)
+      if (searchTerm) params.append("codigo_disciplina", searchTerm)
+
+      const res = await fetch(`http://localhost:8000/turmas/?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      if(res.ok) {
+        // A API retorna TurmaBuscaAlunoResponse, que tem estrutura diferente da TurmaResponse
+        // Mas como somos ADMIN, seria ideal ter uma rota admin. 
+        // Porém, vamos adaptar o que temos ou usar a rota que retorna TurmaResponse se possível.
+        // O endpoint /turmas/ retorna TurmaBuscaAlunoResponse (simplificado).
+        // Vamos usar a estrutura simplificada para listar.
+        const data = await res.json()
+        // Mapear para nossa interface local se necessário
+        setClasses(data)
+      }
+    } catch (err) {
+      toast.error("Erro ao buscar turmas")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Debounce para busca
+  useEffect(() => {
+    const timer = setTimeout(fetchClasses, 500)
+    return () => clearTimeout(timer)
+  }, [selectedPeriodId, searchTerm])
+
+  const handleEdit = async (classItem: any) => {
+    // Precisamos dos dados completos para editar. 
+    // O endpoint de lista é simplificado. Vamos buscar o detalhe.
+    const token = localStorage.getItem("authToken")
+    try {
+        const res = await fetch(`http://localhost:8000/turmas/${classItem.id_turma}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        if(res.ok) {
+            const fullData = await res.json()
+            setSelectedClass(fullData)
+            setShowModal(true)
+        }
+    } catch {
+        toast.error("Erro ao carregar detalhes da turma.")
+    }
   }
 
   const handleNew = () => {
@@ -76,31 +127,43 @@ export function ClassManagement() {
     setShowModal(true)
   }
 
-  const filteredClasses = classesData.filter(
-    (c) =>
-      c.period === selectedPeriod &&
-      (c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.teacher.toLowerCase().includes(searchTerm.toLowerCase())),
-  )
+  const handleDelete = async (id: number) => {
+    if(!confirm("Tem certeza?")) return
+    const token = localStorage.getItem("authToken")
+    
+    try {
+        const res = await fetch(`http://localhost:8000/turmas/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        if(res.ok) {
+            toast.success("Turma removida")
+            fetchClasses()
+        } else {
+            throw new Error()
+        }
+    } catch {
+        toast.error("Erro ao remover")
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader
         title="Gestão de Turmas"
-        userName="Admin Sistema"
-        userInfo="ADMIN001 - Administração Acadêmica"
+        userName="Administrador"
+        userInfo="Coordenação"
       />
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">Turmas por Período</h2>
-            <p className="text-slate-600 mt-1">Gerencie as turmas, professores e vagas</p>
+            <p className="text-slate-600 mt-1">Gerencie as turmas ofertadas</p>
           </div>
           <div className="flex gap-3">
             <Link href="/dashboard/admin">
-              <Button variant="outline">Voltar ao Dashboard</Button>
+              <Button variant="outline">Voltar</Button>
             </Link>
             <Button onClick={handleNew} className="bg-blue-600 hover:bg-blue-700">
               Nova Turma
@@ -114,14 +177,14 @@ export function ClassManagement() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Período Letivo</Label>
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {periodsData.map((period) => (
-                      <SelectItem key={period} value={period}>
-                        {period}
+                    {periods.map((period) => (
+                      <SelectItem key={period.id} value={period.id.toString()}>
+                        {period.ano}.{period.semestre}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -133,7 +196,7 @@ export function ClassManagement() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
-                    placeholder="Código, disciplina ou professor..."
+                    placeholder="Código ou nome da disciplina..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -145,64 +208,74 @@ export function ClassManagement() {
         </Card>
 
         {/* Lista de Turmas */}
-        <div className="grid gap-4">
-          {filteredClasses.map((classItem) => (
-            <Card key={classItem.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <BookOpen className="h-5 w-5 text-green-600" />
+        {loading ? (
+            <div className="grid gap-4">
+                {[1,2,3].map(i => <Skeleton key={i} className="h-32 w-full" />)}
+            </div>
+        ) : classes.length === 0 ? (
+            <p className="text-center text-slate-500 py-10">Nenhuma turma encontrada.</p>
+        ) : (
+            <div className="grid gap-4">
+            {classes.map((classItem: any) => (
+                <Card key={classItem.id_turma}>
+                <CardHeader>
+                    <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                        <BookOpen className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                        <CardTitle className="text-xl">{classItem.codigo_turma}</CardTitle>
+                        <CardDescription className="mt-1">
+                            {classItem.nome_disciplina} ({classItem.codigo_disciplina})
+                        </CardDescription>
+                        </div>
                     </div>
+                    {/* Badge de vagas disponíveis apenas visual aqui */}
+                    <Badge variant={classItem.vagas_disponiveis > 0 ? "secondary" : "destructive"}>
+                        {classItem.vagas_disponiveis} vagas livres
+                    </Badge>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
-                      <CardTitle className="text-xl">{classItem.code}</CardTitle>
-                      <CardDescription className="mt-1">
-                        {classItem.subject} - {classItem.department}
-                      </CardDescription>
+                        <p className="text-sm text-slate-600">Horário</p>
+                        <p className="font-medium">{classItem.horario || "A definir"}</p>
                     </div>
-                  </div>
-                  <Badge variant="secondary">{classItem.period}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <p className="text-sm text-slate-600">Professor</p>
-                    <p className="font-medium">{classItem.teacher}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Horário</p>
-                    <p className="font-medium">{classItem.schedule}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-600">Vagas</p>
-                    <p className="font-medium">
-                      {classItem.enrolledStudents}/{classItem.maxStudents}
-                    </p>
-                  </div>
-                </div>
+                     <div>
+                        <p className="text-sm text-slate-600">Local</p>
+                        <p className="font-medium">{classItem.local || "A definir"}</p>
+                    </div>
+                     <div>
+                        <p className="text-sm text-slate-600">Semestre Ideal</p>
+                        <p className="font-medium">{classItem.semestre_ideal}º</p>
+                    </div>
+                    </div>
 
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline">
-                    <Users className="h-4 w-4 mr-2" />
-                    Ver Lista de Alunos
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleEdit(classItem)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
-                  <Button size="sm" variant="outline" className="text-red-600 border-red-600 bg-transparent">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => handleEdit(classItem)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handleDelete(classItem.id_turma)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir
+                    </Button>
+                    </div>
+                </CardContent>
+                </Card>
+            ))}
+            </div>
+        )}
       </main>
 
-      <ClassModal open={showModal} onOpenChange={setShowModal} classData={selectedClass} />
+      <ClassModal 
+        open={showModal} 
+        onOpenChange={setShowModal} 
+        classData={selectedClass} 
+        onSuccess={fetchClasses}
+      />
     </div>
   )
 }
