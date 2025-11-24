@@ -25,6 +25,7 @@ interface Turma {
   id_professor: number
   disciplina: { nome: string; codigo: string }
   professor: { nome: string }
+  qtd_matriculas: number // Novo campo vindo do backend
 }
 
 interface Periodo {
@@ -77,18 +78,13 @@ export function ClassManagement() {
       params.append("id_periodo_letivo", selectedPeriodId)
       if (searchTerm) params.append("codigo_disciplina", searchTerm)
 
-      const res = await fetch(`http://localhost:8000/turmas/?${params.toString()}`, {
+      // ATUALIZAÇÃO: Usa o novo endpoint para ADMIN
+      const res = await fetch(`http://localhost:8000/turmas/admin/list?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
       if(res.ok) {
-        // A API retorna TurmaBuscaAlunoResponse, que tem estrutura diferente da TurmaResponse
-        // Mas como somos ADMIN, seria ideal ter uma rota admin. 
-        // Porém, vamos adaptar o que temos ou usar a rota que retorna TurmaResponse se possível.
-        // O endpoint /turmas/ retorna TurmaBuscaAlunoResponse (simplificado).
-        // Vamos usar a estrutura simplificada para listar.
         const data = await res.json()
-        // Mapear para nossa interface local se necessário
         setClasses(data)
       }
     } catch (err) {
@@ -104,22 +100,11 @@ export function ClassManagement() {
     return () => clearTimeout(timer)
   }, [selectedPeriodId, searchTerm])
 
-  const handleEdit = async (classItem: any) => {
-    // Precisamos dos dados completos para editar. 
-    // O endpoint de lista é simplificado. Vamos buscar o detalhe.
-    const token = localStorage.getItem("authToken")
-    try {
-        const res = await fetch(`http://localhost:8000/turmas/${classItem.id_turma}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        })
-        if(res.ok) {
-            const fullData = await res.json()
-            setSelectedClass(fullData)
-            setShowModal(true)
-        }
-    } catch {
-        toast.error("Erro ao carregar detalhes da turma.")
-    }
+  const handleEdit = async (classItem: Turma) => {
+    // Como já temos os dados completos no endpoint /admin/list,
+    // podemos passar direto sem precisar de novo fetch (a menos que o schema mude muito)
+    setSelectedClass(classItem)
+    setShowModal(true)
   }
 
   const handleNew = () => {
@@ -196,7 +181,7 @@ export function ClassManagement() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
-                    placeholder="Código ou nome da disciplina..."
+                    placeholder="Nome ou código da disciplina..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -216,8 +201,11 @@ export function ClassManagement() {
             <p className="text-center text-slate-500 py-10">Nenhuma turma encontrada.</p>
         ) : (
             <div className="grid gap-4">
-            {classes.map((classItem: any) => (
-                <Card key={classItem.id_turma}>
+            {classes.map((classItem) => {
+                const vagasLivres = classItem.vagas - (classItem.qtd_matriculas || 0)
+                
+                return (
+                <Card key={classItem.id}>
                 <CardHeader>
                     <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
@@ -225,15 +213,16 @@ export function ClassManagement() {
                         <BookOpen className="h-5 w-5 text-green-600" />
                         </div>
                         <div>
-                        <CardTitle className="text-xl">{classItem.codigo_turma}</CardTitle>
+                        {/* ATUALIZAÇÃO: Usa codigo ao invés de codigo_turma */}
+                        <CardTitle className="text-xl">{classItem.codigo}</CardTitle>
                         <CardDescription className="mt-1">
-                            {classItem.nome_disciplina} ({classItem.codigo_disciplina})
+                            {/* ATUALIZAÇÃO: Acessa propriedades aninhadas de disciplina */}
+                            {classItem.disciplina.nome} ({classItem.disciplina.codigo})
                         </CardDescription>
                         </div>
                     </div>
-                    {/* Badge de vagas disponíveis apenas visual aqui */}
-                    <Badge variant={classItem.vagas_disponiveis > 0 ? "secondary" : "destructive"}>
-                        {classItem.vagas_disponiveis} vagas livres
+                    <Badge variant={vagasLivres > 0 ? "secondary" : "destructive"}>
+                        {vagasLivres} vagas livres
                     </Badge>
                     </div>
                 </CardHeader>
@@ -248,8 +237,8 @@ export function ClassManagement() {
                         <p className="font-medium">{classItem.local || "A definir"}</p>
                     </div>
                      <div>
-                        <p className="text-sm text-slate-600">Semestre Ideal</p>
-                        <p className="font-medium">{classItem.semestre_ideal}º</p>
+                        <p className="text-sm text-slate-600">Professor</p>
+                        <p className="font-medium">{classItem.professor?.nome || "A definir"}</p>
                     </div>
                     </div>
 
@@ -258,14 +247,14 @@ export function ClassManagement() {
                         <Edit className="h-4 w-4 mr-2" />
                         Editar
                     </Button>
-                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handleDelete(classItem.id_turma)}>
+                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handleDelete(classItem.id)}>
                         <Trash2 className="h-4 w-4 mr-2" />
                         Excluir
                     </Button>
                     </div>
                 </CardContent>
                 </Card>
-            ))}
+            )})}
             </div>
         )}
       </main>

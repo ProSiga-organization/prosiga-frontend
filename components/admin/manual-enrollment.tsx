@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,97 +8,165 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { Search, AlertTriangle, CheckCircle } from "lucide-react"
+import { Search, AlertTriangle, CheckCircle, User, BookOpen } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Dados simulados
-const studentsData = [
-  { id: 1, name: "João Silva", registration: "2023001", course: "Engenharia de Software" },
-  { id: 2, name: "Maria Santos", registration: "2023002", course: "Ciência da Computação" },
-]
+// Interfaces
+interface Aluno {
+  id: number
+  nome: string
+  matricula: string
+  email: string
+  // O backend pode não retornar o curso aqui se não estiver carregado, mas vamos tentar usar
+  curso?: { nome: string } 
+}
 
-const classesData = [
-  {
-    id: 1,
-    code: "AED001-T01",
-    subject: "Algoritmos e Estruturas de Dados",
-    teacher: "Prof. Maria Santos",
-    schedule: "Seg/Qua 14:00-16:00",
-    maxStudents: 30,
-    enrolledStudents: 30,
-    hasPrerequisites: true,
-  },
-  {
-    id: 2,
-    code: "CDI001-T01",
-    subject: "Cálculo Diferencial e Integral",
-    teacher: "Prof. João Oliveira",
-    schedule: "Ter/Qui 10:00-12:00",
-    maxStudents: 50,
-    enrolledStudents: 45,
-    hasPrerequisites: false,
-  },
-]
+interface Turma {
+  id_turma: number
+  codigo_turma: string
+  nome_disciplina: string
+  codigo_disciplina: string
+  vagas_disponiveis: number
+  horario: string
+  // Campos que podem não vir na busca simples, mas são úteis
+  professor?: string 
+}
 
 export function ManualEnrollment() {
   const [studentSearch, setStudentSearch] = useState("")
   const [classSearch, setClassSearch] = useState("")
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
-  const [selectedClass, setSelectedClass] = useState<any>(null)
+  
+  const [students, setStudents] = useState<Aluno[]>([])
+  const [classes, setClasses] = useState<Turma[]>([])
+  
+  const [selectedStudent, setSelectedStudent] = useState<Aluno | null>(null)
+  const [selectedClass, setSelectedClass] = useState<Turma | null>(null)
   const [justification, setJustification] = useState("")
+  
+  const [loadingStudents, setLoadingStudents] = useState(false)
+  const [loadingClasses, setLoadingClasses] = useState(false)
+  const [processing, setProcessing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const handleEnroll = () => {
+  const apiBaseUrl = "http://localhost:8000"
+
+  // Busca de Alunos (Debounce)
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token || !studentSearch) {
+        setStudents([])
+        return
+    }
+
+    const timer = setTimeout(async () => {
+        setLoadingStudents(true)
+        try {
+            const res = await fetch(`${apiBaseUrl}/usuarios/alunos?term=${studentSearch}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            if (res.ok) setStudents(await res.json())
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setLoadingStudents(false)
+        }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [studentSearch])
+
+  // Busca de Turmas (Debounce)
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token || !classSearch) {
+        setClasses([])
+        return
+    }
+
+    const timer = setTimeout(async () => {
+        setLoadingClasses(true)
+        try {
+            // Usa o endpoint de busca geral de turmas
+            const res = await fetch(`${apiBaseUrl}/turmas/?codigo_disciplina=${classSearch}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            if (res.ok) setClasses(await res.json())
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setLoadingClasses(false)
+        }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [classSearch])
+
+
+  const handleEnroll = async () => {
     if (!selectedStudent || !selectedClass || !justification.trim()) {
-      alert("Por favor, selecione um aluno, uma turma e forneça uma justificativa.")
+      toast.error("Preencha todos os campos obrigatórios.")
       return
     }
 
-    console.log("[v0] Matrícula excepcional:", {
-      student: selectedStudent,
-      class: selectedClass,
-      justification,
-    })
+    setProcessing(true)
+    const token = localStorage.getItem("authToken")
 
-    setShowSuccess(true)
-    setTimeout(() => {
-      setShowSuccess(false)
-      setSelectedStudent(null)
-      setSelectedClass(null)
-      setJustification("")
-      setStudentSearch("")
-      setClassSearch("")
-    }, 3000)
+    try {
+      const response = await fetch(`${apiBaseUrl}/matriculas/admin/matricular`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            matricula_aluno: selectedStudent.matricula,
+            id_turma: selectedClass.id_turma
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+          throw new Error(data.detail || "Erro ao realizar matrícula.")
+      }
+
+      setShowSuccess(true)
+      toast.success("Matrícula realizada com sucesso!")
+      
+      // Resetar formulário após 3s
+      setTimeout(() => {
+        setShowSuccess(false)
+        setSelectedStudent(null)
+        setSelectedClass(null)
+        setJustification("")
+        setStudentSearch("")
+        setClassSearch("")
+      }, 3000)
+
+    } catch (error: any) {
+        toast.error(error.message)
+    } finally {
+        setProcessing(false)
+    }
   }
 
-  const filteredStudents = studentsData.filter(
-    (s) =>
-      s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-      s.registration.toLowerCase().includes(studentSearch.toLowerCase()),
-  )
-
-  const filteredClasses = classesData.filter(
-    (c) =>
-      c.code.toLowerCase().includes(classSearch.toLowerCase()) ||
-      c.subject.toLowerCase().includes(classSearch.toLowerCase()),
-  )
-
-  const hasRestrictions =
-    selectedClass && (selectedClass.enrolledStudents >= selectedClass.maxStudents || selectedClass.hasPrerequisites)
+  const hasRestrictions = selectedClass && selectedClass.vagas_disponiveis <= 0
 
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader
         title="Matrícula Manual de Alunos"
-        userName="Admin Sistema"
-        userInfo="ADMIN001 - Administração Acadêmica"
+        userName="Administrador"
+        userInfo="Coordenação"
       />
 
       <main className="container mx-auto px-4 py-6 max-w-5xl">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">Matrícula Excepcional</h2>
-            <p className="text-slate-600 mt-1">Realize matrículas mesmo com restrições de vagas ou pré-requisitos</p>
+            <p className="text-slate-600 mt-1">Realize matrículas mesmo com restrições de vagas</p>
           </div>
           <Link href="/dashboard/admin">
             <Button variant="outline">Voltar ao Dashboard</Button>
@@ -106,7 +174,7 @@ export function ManualEnrollment() {
         </div>
 
         {showSuccess && (
-          <Card className="mb-6 border-green-600 bg-green-50">
+          <Card className="mb-6 border-green-600 bg-green-50 animate-in fade-in slide-in-from-top-4">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 text-green-700">
                 <CheckCircle className="h-5 w-5" />
@@ -129,38 +197,70 @@ export function ManualEnrollment() {
                 <Input
                   placeholder="Nome ou matrícula do aluno..."
                   value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
+                  onChange={(e) => {
+                      setStudentSearch(e.target.value)
+                      if (!e.target.value) setSelectedStudent(null)
+                  }}
                   className="pl-10"
+                  disabled={!!selectedStudent} // Desabilita se já selecionou
                 />
+                 {selectedStudent && (
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7"
+                        onClick={() => {
+                            setSelectedStudent(null)
+                            setStudentSearch("")
+                        }}
+                    >
+                        Trocar
+                    </Button>
+                )}
               </div>
 
-              {studentSearch && (
-                <div className="space-y-2">
-                  {filteredStudents.map((student) => (
-                    <div
-                      key={student.id}
-                      onClick={() => setSelectedStudent(student)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedStudent?.id === student.id
-                          ? "border-blue-600 bg-blue-50"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <p className="font-medium">{student.name}</p>
-                      <p className="text-sm text-slate-600">
-                        {student.registration} - {student.course}
-                      </p>
-                    </div>
-                  ))}
+              {!selectedStudent && studentSearch && (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {loadingStudents ? (
+                      <div className="p-4 text-center text-slate-500">Buscando...</div>
+                  ) : students.length === 0 ? (
+                      <div className="p-4 text-center text-slate-500">Nenhum aluno encontrado.</div>
+                  ) : (
+                      students.map((student) => (
+                        <div
+                          key={student.id}
+                          onClick={() => {
+                              setSelectedStudent(student)
+                              setStudentSearch(student.nome) // Preenche o input com o nome
+                          }}
+                          className="p-3 border rounded-lg cursor-pointer hover:bg-slate-50 flex items-center gap-3"
+                        >
+                          <div className="bg-slate-100 p-2 rounded-full">
+                              <User className="h-4 w-4 text-slate-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{student.nome}</p>
+                            <p className="text-sm text-slate-600">
+                                {student.matricula} • {student.email}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                  )}
                 </div>
               )}
 
-              {selectedStudent && !studentSearch && (
-                <div className="p-3 border border-blue-600 bg-blue-50 rounded-lg">
-                  <p className="font-medium">{selectedStudent.name}</p>
-                  <p className="text-sm text-slate-600">
-                    {selectedStudent.registration} - {selectedStudent.course}
-                  </p>
+              {selectedStudent && (
+                <div className="p-3 border border-blue-600 bg-blue-50 rounded-lg flex items-center gap-3">
+                   <div className="bg-blue-100 p-2 rounded-full">
+                      <CheckCircle className="h-5 w-5 text-blue-600" />
+                   </div>
+                   <div>
+                      <p className="font-medium text-blue-900">Aluno Selecionado</p>
+                      <p className="text-sm text-blue-700">
+                        {selectedStudent.nome} ({selectedStudent.matricula})
+                      </p>
+                   </div>
                 </div>
               )}
             </CardContent>
@@ -170,74 +270,86 @@ export function ManualEnrollment() {
           <Card>
             <CardHeader>
               <CardTitle>2. Buscar Turma</CardTitle>
-              <CardDescription>Pesquise por código ou nome da disciplina</CardDescription>
+              <CardDescription>Pesquise por código da disciplina (ex: COMP)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Código ou nome da disciplina..."
+                  placeholder="Código da disciplina..."
                   value={classSearch}
-                  onChange={(e) => setClassSearch(e.target.value)}
+                  onChange={(e) => {
+                      setClassSearch(e.target.value)
+                      if(!e.target.value) setSelectedClass(null)
+                  }}
                   className="pl-10"
+                  disabled={!!selectedClass}
                 />
+                 {selectedClass && (
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7"
+                        onClick={() => {
+                            setSelectedClass(null)
+                            setClassSearch("")
+                        }}
+                    >
+                        Trocar
+                    </Button>
+                )}
               </div>
 
-              {classSearch && (
-                <div className="space-y-2">
-                  {filteredClasses.map((classItem) => (
-                    <div
-                      key={classItem.id}
-                      onClick={() => setSelectedClass(classItem)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedClass?.id === classItem.id
-                          ? "border-blue-600 bg-blue-50"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium">{classItem.code}</p>
-                          <p className="text-sm text-slate-600">{classItem.subject}</p>
+              {!selectedClass && classSearch && (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                   {loadingClasses ? (
+                      <div className="p-4 text-center text-slate-500">Buscando...</div>
+                  ) : classes.length === 0 ? (
+                      <div className="p-4 text-center text-slate-500">Nenhuma turma encontrada.</div>
+                  ) : (
+                      classes.map((classItem) => (
+                        <div
+                          key={classItem.id_turma}
+                          onClick={() => {
+                              setSelectedClass(classItem)
+                              setClassSearch(`${classItem.codigo_disciplina} - ${classItem.codigo_turma}`)
+                          }}
+                          className="p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <div className="flex items-center gap-2">
+                                <BookOpen className="h-4 w-4 text-slate-500" />
+                                <p className="font-medium">{classItem.nome_disciplina}</p>
+                            </div>
+                            {classItem.vagas_disponiveis <= 0 && (
+                                <Badge variant="destructive">Lotada</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 ml-6">
+                            {classItem.codigo_disciplina} - Turma {classItem.codigo_turma}
+                          </p>
+                          <p className="text-sm text-slate-500 ml-6">
+                             {classItem.horario || "Horário a definir"} • Vagas: {classItem.vagas_disponiveis}
+                          </p>
                         </div>
-                        <div className="flex gap-2">
-                          {classItem.enrolledStudents >= classItem.maxStudents && (
-                            <Badge variant="destructive">Lotada</Badge>
-                          )}
-                          {classItem.hasPrerequisites && <Badge variant="secondary">Pré-requisitos</Badge>}
-                        </div>
-                      </div>
-                      <p className="text-sm text-slate-600">
-                        {classItem.teacher} • {classItem.schedule}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        Vagas: {classItem.enrolledStudents}/{classItem.maxStudents}
-                      </p>
-                    </div>
-                  ))}
+                      ))
+                  )}
                 </div>
               )}
 
-              {selectedClass && !classSearch && (
+              {selectedClass && (
                 <div className="p-3 border border-blue-600 bg-blue-50 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-medium">{selectedClass.code}</p>
-                      <p className="text-sm text-slate-600">{selectedClass.subject}</p>
+                      <p className="font-medium text-blue-900">Turma Selecionada</p>
+                      <p className="text-sm text-blue-700">
+                        {selectedClass.nome_disciplina} ({selectedClass.codigo_disciplina}) - Turma {selectedClass.codigo_turma}
+                      </p>
                     </div>
-                    <div className="flex gap-2">
-                      {selectedClass.enrolledStudents >= selectedClass.maxStudents && (
-                        <Badge variant="destructive">Lotada</Badge>
-                      )}
-                      {selectedClass.hasPrerequisites && <Badge variant="secondary">Pré-requisitos</Badge>}
-                    </div>
+                    {selectedClass.vagas_disponiveis <= 0 && (
+                        <Badge variant="destructive">Vagas Esgotadas</Badge>
+                    )}
                   </div>
-                  <p className="text-sm text-slate-600">
-                    {selectedClass.teacher} • {selectedClass.schedule}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    Vagas: {selectedClass.enrolledStudents}/{selectedClass.maxStudents}
-                  </p>
                 </div>
               )}
             </CardContent>
@@ -257,10 +369,8 @@ export function ManualEnrollment() {
                     <div className="flex-1">
                       <p className="font-medium text-orange-900">Restrições Identificadas</p>
                       <ul className="text-sm text-orange-700 mt-1 space-y-1">
-                        {selectedClass.enrolledStudents >= selectedClass.maxStudents && (
-                          <li>• Turma está com vagas esgotadas</li>
-                        )}
-                        {selectedClass.hasPrerequisites && <li>• Aluno não cumpre os pré-requisitos</li>}
+                        <li>• A turma selecionada não possui vagas disponíveis.</li>
+                        <li>• A matrícula será forçada pelo sistema.</li>
                       </ul>
                     </div>
                   </div>
@@ -270,7 +380,7 @@ export function ManualEnrollment() {
                   <Label htmlFor="justification">Justificativa Obrigatória</Label>
                   <Textarea
                     id="justification"
-                    placeholder="Descreva o motivo da matrícula excepcional..."
+                    placeholder="Descreva o motivo da matrícula excepcional (ex: Aluno formando, erro no sistema...)"
                     value={justification}
                     onChange={(e) => setJustification(e.target.value)}
                     rows={4}
@@ -278,8 +388,13 @@ export function ManualEnrollment() {
                   />
                 </div>
 
-                <Button onClick={handleEnroll} className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
-                  Confirmar Matrícula Excepcional
+                <Button 
+                    onClick={handleEnroll} 
+                    className="w-full bg-blue-600 hover:bg-blue-700" 
+                    size="lg"
+                    disabled={processing}
+                >
+                  {processing ? "Processando..." : "Confirmar Matrícula Excepcional"}
                 </Button>
               </CardContent>
             </Card>
