@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,7 +11,6 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Search, AlertTriangle, CheckCircle, User, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Skeleton } from "@/components/ui/skeleton"
 
 // Interfaces
 interface Aluno {
@@ -19,19 +18,21 @@ interface Aluno {
   nome: string
   matricula: string
   email: string
-  // O backend pode não retornar o curso aqui se não estiver carregado, mas vamos tentar usar
-  curso?: { nome: string } 
 }
 
 interface Turma {
-  id_turma: number
-  codigo_turma: string
-  nome_disciplina: string
-  codigo_disciplina: string
-  vagas_disponiveis: number
+  id: number
+  codigo: string // "T1"
+  vagas: number
   horario: string
-  // Campos que podem não vir na busca simples, mas são úteis
-  professor?: string 
+  disciplina: {
+    nome: string
+    codigo: string // "COMP101"
+  }
+  professor: {
+    nome: string
+  }
+  qtd_matriculas: number
 }
 
 export function ManualEnrollment() {
@@ -52,7 +53,7 @@ export function ManualEnrollment() {
 
   const apiBaseUrl = "http://localhost:8000"
 
-  // Busca de Alunos (Debounce)
+  // Busca de Alunos
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     if (!token || !studentSearch) {
@@ -77,7 +78,7 @@ export function ManualEnrollment() {
     return () => clearTimeout(timer)
   }, [studentSearch])
 
-  // Busca de Turmas (Debounce)
+  // Busca de Turmas (CORRIGIDA para usar endpoint admin)
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     if (!token || !classSearch) {
@@ -88,8 +89,8 @@ export function ManualEnrollment() {
     const timer = setTimeout(async () => {
         setLoadingClasses(true)
         try {
-            // Usa o endpoint de busca geral de turmas
-            const res = await fetch(`${apiBaseUrl}/turmas/?codigo_disciplina=${classSearch}`, {
+            // Usa o endpoint de ADMIN que permite busca livre
+            const res = await fetch(`${apiBaseUrl}/turmas/admin/list?codigo_disciplina=${classSearch}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) setClasses(await res.json())
@@ -122,7 +123,7 @@ export function ManualEnrollment() {
         },
         body: JSON.stringify({
             matricula_aluno: selectedStudent.matricula,
-            id_turma: selectedClass.id_turma
+            id_turma: selectedClass.id // O ID da turma vem no campo 'id' do objeto TurmaResponse
         })
       })
 
@@ -135,7 +136,6 @@ export function ManualEnrollment() {
       setShowSuccess(true)
       toast.success("Matrícula realizada com sucesso!")
       
-      // Resetar formulário após 3s
       setTimeout(() => {
         setShowSuccess(false)
         setSelectedStudent(null)
@@ -152,7 +152,8 @@ export function ManualEnrollment() {
     }
   }
 
-  const hasRestrictions = selectedClass && selectedClass.vagas_disponiveis <= 0
+  const vagasDisponiveis = selectedClass ? selectedClass.vagas - selectedClass.qtd_matriculas : 0
+  const hasRestrictions = selectedClass && vagasDisponiveis <= 0
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -166,7 +167,7 @@ export function ManualEnrollment() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">Matrícula Excepcional</h2>
-            <p className="text-slate-600 mt-1">Realize matrículas mesmo com restrições de vagas</p>
+            <p className="text-slate-600 mt-1">Realize matrículas ignorando validações de sistema</p>
           </div>
           <Link href="/dashboard/admin">
             <Button variant="outline">Voltar ao Dashboard</Button>
@@ -195,14 +196,14 @@ export function ManualEnrollment() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Nome ou matrícula do aluno..."
+                  placeholder="Nome ou matrícula..."
                   value={studentSearch}
                   onChange={(e) => {
                       setStudentSearch(e.target.value)
                       if (!e.target.value) setSelectedStudent(null)
                   }}
                   className="pl-10"
-                  disabled={!!selectedStudent} // Desabilita se já selecionou
+                  disabled={!!selectedStudent}
                 />
                  {selectedStudent && (
                     <Button 
@@ -220,7 +221,7 @@ export function ManualEnrollment() {
               </div>
 
               {!selectedStudent && studentSearch && (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md">
                   {loadingStudents ? (
                       <div className="p-4 text-center text-slate-500">Buscando...</div>
                   ) : students.length === 0 ? (
@@ -231,36 +232,20 @@ export function ManualEnrollment() {
                           key={student.id}
                           onClick={() => {
                               setSelectedStudent(student)
-                              setStudentSearch(student.nome) // Preenche o input com o nome
+                              setStudentSearch(student.nome)
                           }}
-                          className="p-3 border rounded-lg cursor-pointer hover:bg-slate-50 flex items-center gap-3"
+                          className="p-3 border-b last:border-0 cursor-pointer hover:bg-slate-50 flex items-center gap-3"
                         >
                           <div className="bg-slate-100 p-2 rounded-full">
                               <User className="h-4 w-4 text-slate-600" />
                           </div>
                           <div>
                             <p className="font-medium">{student.nome}</p>
-                            <p className="text-sm text-slate-600">
-                                {student.matricula} • {student.email}
-                            </p>
+                            <p className="text-sm text-slate-600">{student.matricula}</p>
                           </div>
                         </div>
                       ))
                   )}
-                </div>
-              )}
-
-              {selectedStudent && (
-                <div className="p-3 border border-blue-600 bg-blue-50 rounded-lg flex items-center gap-3">
-                   <div className="bg-blue-100 p-2 rounded-full">
-                      <CheckCircle className="h-5 w-5 text-blue-600" />
-                   </div>
-                   <div>
-                      <p className="font-medium text-blue-900">Aluno Selecionado</p>
-                      <p className="text-sm text-blue-700">
-                        {selectedStudent.nome} ({selectedStudent.matricula})
-                      </p>
-                   </div>
                 </div>
               )}
             </CardContent>
@@ -270,13 +255,13 @@ export function ManualEnrollment() {
           <Card>
             <CardHeader>
               <CardTitle>2. Buscar Turma</CardTitle>
-              <CardDescription>Pesquise por código da disciplina (ex: COMP)</CardDescription>
+              <CardDescription>Pesquise por nome da disciplina ou código (ex: COMP)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Código da disciplina..."
+                  placeholder="Disciplina ou código..."
                   value={classSearch}
                   onChange={(e) => {
                       setClassSearch(e.target.value)
@@ -301,55 +286,42 @@ export function ManualEnrollment() {
               </div>
 
               {!selectedClass && classSearch && (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md">
                    {loadingClasses ? (
                       <div className="p-4 text-center text-slate-500">Buscando...</div>
                   ) : classes.length === 0 ? (
                       <div className="p-4 text-center text-slate-500">Nenhuma turma encontrada.</div>
                   ) : (
-                      classes.map((classItem) => (
+                      classes.map((classItem) => {
+                        const vagasRestantes = classItem.vagas - classItem.qtd_matriculas
+                        return (
                         <div
-                          key={classItem.id_turma}
+                          key={classItem.id}
                           onClick={() => {
                               setSelectedClass(classItem)
-                              setClassSearch(`${classItem.codigo_disciplina} - ${classItem.codigo_turma}`)
+                              setClassSearch(`${classItem.disciplina.nome} (${classItem.codigo})`)
                           }}
-                          className="p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                          className="p-3 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors"
                         >
                           <div className="flex justify-between items-start mb-1">
                             <div className="flex items-center gap-2">
                                 <BookOpen className="h-4 w-4 text-slate-500" />
-                                <p className="font-medium">{classItem.nome_disciplina}</p>
+                                <p className="font-medium">{classItem.disciplina.nome}</p>
                             </div>
-                            {classItem.vagas_disponiveis <= 0 && (
+                            {vagasRestantes <= 0 && (
                                 <Badge variant="destructive">Lotada</Badge>
                             )}
                           </div>
                           <p className="text-sm text-slate-600 ml-6">
-                            {classItem.codigo_disciplina} - Turma {classItem.codigo_turma}
+                            {classItem.disciplina.codigo} - Turma {classItem.codigo}
                           </p>
                           <p className="text-sm text-slate-500 ml-6">
-                             {classItem.horario || "Horário a definir"} • Vagas: {classItem.vagas_disponiveis}
+                             {classItem.professor.nome} • {classItem.horario || "Sem horário"} • Vagas: {vagasRestantes}
                           </p>
                         </div>
-                      ))
+                      )
+                    })
                   )}
-                </div>
-              )}
-
-              {selectedClass && (
-                <div className="p-3 border border-blue-600 bg-blue-50 rounded-lg">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium text-blue-900">Turma Selecionada</p>
-                      <p className="text-sm text-blue-700">
-                        {selectedClass.nome_disciplina} ({selectedClass.codigo_disciplina}) - Turma {selectedClass.codigo_turma}
-                      </p>
-                    </div>
-                    {selectedClass.vagas_disponiveis <= 0 && (
-                        <Badge variant="destructive">Vagas Esgotadas</Badge>
-                    )}
-                  </div>
                 </div>
               )}
             </CardContent>
@@ -359,19 +331,17 @@ export function ManualEnrollment() {
           {selectedStudent && selectedClass && (
             <Card>
               <CardHeader>
-                <CardTitle>3. Justificativa *</CardTitle>
-                <CardDescription>Informe o motivo da matrícula excepcional</CardDescription>
+                <CardTitle>3. Confirmação</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {hasRestrictions && (
                   <div className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                     <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
                     <div className="flex-1">
-                      <p className="font-medium text-orange-900">Restrições Identificadas</p>
-                      <ul className="text-sm text-orange-700 mt-1 space-y-1">
-                        <li>• A turma selecionada não possui vagas disponíveis.</li>
-                        <li>• A matrícula será forçada pelo sistema.</li>
-                      </ul>
+                      <p className="font-medium text-orange-900">Turma Lotada</p>
+                      <p className="text-sm text-orange-700 mt-1">
+                        Você está prestes a matricular um aluno em uma turma sem vagas.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -380,10 +350,10 @@ export function ManualEnrollment() {
                   <Label htmlFor="justification">Justificativa Obrigatória</Label>
                   <Textarea
                     id="justification"
-                    placeholder="Descreva o motivo da matrícula excepcional (ex: Aluno formando, erro no sistema...)"
+                    placeholder="Motivo da matrícula manual..."
                     value={justification}
                     onChange={(e) => setJustification(e.target.value)}
-                    rows={4}
+                    rows={3}
                     required
                   />
                 </div>
@@ -394,7 +364,7 @@ export function ManualEnrollment() {
                     size="lg"
                     disabled={processing}
                 >
-                  {processing ? "Processando..." : "Confirmar Matrícula Excepcional"}
+                  {processing ? "Processando..." : "Confirmar Matrícula"}
                 </Button>
               </CardContent>
             </Card>
