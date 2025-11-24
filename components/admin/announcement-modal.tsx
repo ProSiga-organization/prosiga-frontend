@@ -1,57 +1,100 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
 
 interface AnnouncementModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   announcement?: any
+  onSuccess: () => void
 }
 
-const courses = ["Todos os cursos", "Engenharia de Software", "Ciência da Computação", "Sistemas de Informação"]
-
-export function AnnouncementModal({ open, onOpenChange, announcement }: AnnouncementModalProps) {
+export function AnnouncementModal({ open, onOpenChange, announcement, onSuccess }: AnnouncementModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     content: "",
-    course: "Todos os cursos",
+    id_curso: "",
   })
+  const [courses, setCourses] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Buscar cursos
+  useEffect(() => {
+    if(!open) return
+    const fetchCourses = async () => {
+      const token = localStorage.getItem("authToken")
+      try {
+        const res = await fetch("http://localhost:8000/cursos/", {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        if(res.ok) setCourses(await res.json())
+      } catch(e) { console.error(e) }
+    }
+    fetchCourses()
+  }, [open])
 
   useEffect(() => {
     if (announcement) {
       setFormData({
         title: announcement.title,
         content: announcement.content,
-        course: announcement.course,
+        id_curso: announcement.id_curso.toString(),
       })
     } else {
       setFormData({
         title: "",
         content: "",
-        course: "Todos os cursos",
+        id_curso: "",
       })
     }
   }, [announcement, open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] Salvando aviso:", formData)
-    onOpenChange(false)
+    if(!formData.id_curso) {
+        toast.error("Selecione um curso.")
+        return
+    }
+
+    setLoading(true)
+    const token = localStorage.getItem("authToken")
+    
+    try {
+        const url = announcement 
+            ? `http://localhost:8000/avisos/${announcement.id}`
+            : "http://localhost:8000/avisos/curso"
+        
+        const method = announcement ? "PUT" : "POST"
+        
+        // Para PUT, enviamos apenas titulo/conteudo. Para POST, enviamos tudo.
+        const body = announcement 
+            ? { titulo: formData.title, conteudo: formData.content }
+            : { titulo: formData.title, conteudo: formData.content, id_curso: parseInt(formData.id_curso) }
+
+        const res = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(body)
+        })
+
+        if(!res.ok) throw new Error()
+        
+        toast.success(announcement ? "Aviso atualizado" : "Aviso publicado")
+        onSuccess()
+        onOpenChange(false)
+    } catch {
+        toast.error("Erro ao salvar aviso")
+    } finally {
+        setLoading(false)
+    }
   }
 
   return (
@@ -60,7 +103,7 @@ export function AnnouncementModal({ open, onOpenChange, announcement }: Announce
         <DialogHeader>
           <DialogTitle>{announcement ? "Editar Aviso" : "Novo Aviso"}</DialogTitle>
           <DialogDescription>
-            {announcement ? "Edite as informações do aviso institucional" : "Crie um novo aviso para os alunos"}
+            {announcement ? "Edite as informações do aviso" : "Crie um novo aviso para um curso"}
           </DialogDescription>
         </DialogHeader>
 
@@ -69,7 +112,6 @@ export function AnnouncementModal({ open, onOpenChange, announcement }: Announce
             <Label htmlFor="title">Título do Aviso *</Label>
             <Input
               id="title"
-              placeholder="Ex: Início do Período Letivo 2025.1"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
@@ -80,7 +122,6 @@ export function AnnouncementModal({ open, onOpenChange, announcement }: Announce
             <Label htmlFor="content">Conteúdo *</Label>
             <Textarea
               id="content"
-              placeholder="Escreva o conteúdo do aviso..."
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               rows={6}
@@ -89,30 +130,31 @@ export function AnnouncementModal({ open, onOpenChange, announcement }: Announce
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="course">Destinatário *</Label>
-            <Select value={formData.course} onValueChange={(value) => setFormData({ ...formData, course: value })}>
+            <Label htmlFor="course">Destinatário (Curso) *</Label>
+            <Select 
+                value={formData.id_curso} 
+                onValueChange={(value) => setFormData({ ...formData, id_curso: value })}
+                disabled={!!announcement} // Não permite mudar o curso na edição (simplificação)
+            >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Selecione um curso" />
               </SelectTrigger>
               <SelectContent>
-                {courses.map((course) => (
-                  <SelectItem key={course} value={course}>
-                    {course}
-                  </SelectItem>
+                {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.nome}
+                    </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-sm text-slate-600">
-              Selecione "Todos os cursos" para enviar o aviso para toda a instituição
-            </p>
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              {announcement ? "Salvar Alterações" : "Publicar Aviso"}
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={loading}>
+              {loading ? "Salvando..." : (announcement ? "Salvar Alterações" : "Publicar Aviso")}
             </Button>
           </DialogFooter>
         </form>
