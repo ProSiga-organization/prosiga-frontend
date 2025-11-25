@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { Download, BookOpen, TrendingUp, CheckCircle, Clock } from "lucide-react"
+import { Download, BookOpen, TrendingUp, CheckCircle, Clock, Megaphone } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton" // Importando o Skeleton
@@ -48,6 +48,19 @@ interface Matricula {
   status: string
   nota_final: number | null
   turma: Turma
+}
+
+interface Autor {
+  id: number
+  nome: string
+}
+
+interface Aviso {
+  id: number
+  titulo: string
+  conteudo: string | null
+  data_publicacao: string
+  autor: Autor
 }
 
 // --- Componente de Loading (Skeleton) ---
@@ -122,6 +135,7 @@ export function StudentDashboard() {
   const [ira, setIra] = useState<IraData | null>(null)
   const [semestre, setSemestre] = useState<SemestreData | null>(null)
   const [matriculas, setMatriculas] = useState<Matricula[]>([])
+  const [avisos, setAvisos] = useState<Aviso[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -142,20 +156,16 @@ export function StudentDashboard() {
       const apiBaseUrl = "http://localhost:8000"
 
       try {
-        const [alunoRes, iraRes, semestreRes, matriculasRes] = await Promise.all([
+        const [alunoRes, iraRes, semestreRes, matriculasRes, avisosRes] = await Promise.all([
           fetch(`${apiBaseUrl}/usuarios/me`, { headers }),
           fetch(`${apiBaseUrl}/usuarios/me/ira`, { headers }),
           fetch(`${apiBaseUrl}/usuarios/me/semestre-atual`, { headers }),
           fetch(`${apiBaseUrl}/matriculas/me`, { headers }),
+          fetch(`${apiBaseUrl}/avisos/me`, { headers }),
         ])
 
-        if (!alunoRes.ok || !iraRes.ok || !semestreRes.ok || !matriculasRes.ok) {
-          if (matriculasRes.status === 404) {
-            // Se o aluno não tiver matrículas, não é um erro fatal
-            setMatriculas([])
-          } else {
-             throw new Error("Falha ao buscar dados. Verifique sua conexão ou tente logar novamente.")
-          }
+        if (!alunoRes.ok || !iraRes.ok || !semestreRes.ok) {
+          throw new Error("Falha ao buscar dados. Verifique sua conexão ou tente logar novamente.")
         }
 
         const alunoData = await alunoRes.json()
@@ -163,11 +173,14 @@ export function StudentDashboard() {
         const semestreData = await semestreRes.json()
         // Tratamento para 404 em matrículas
         const matriculasData = matriculasRes.status === 404 ? [] : await matriculasRes.json()
+        // Tratamento para avisos (pode não haver nenhum)
+        const avisosData = avisosRes.ok ? await avisosRes.json() : []
 
         setAluno(alunoData)
         setIra(iraData)
         setSemestre(semestreData)
         setMatriculas(matriculasData)
+        setAvisos(avisosData)
 
       } catch (err: any) {
         setError(err.message)
@@ -317,6 +330,41 @@ export function StudentDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Avisos da Coordenação */}
+        {avisos.length > 0 && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-blue-600" />
+                <CardTitle className="text-blue-900">Avisos da Coordenação</CardTitle>
+              </div>
+              <CardDescription className="text-blue-700">
+                Comunicados importantes do seu curso
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {avisos.map((aviso) => (
+                <div key={aviso.id} className="bg-white border border-blue-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-semibold text-slate-900">{aviso.titulo}</h3>
+                    <span className="text-xs text-slate-500">
+                      {new Date(aviso.data_publicacao).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                  {aviso.conteudo && (
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{aviso.conteudo}</p>
+                  )}
+                  <p className="text-xs text-slate-500 mt-2">Por: {aviso.autor.nome}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue="subjects" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2">
