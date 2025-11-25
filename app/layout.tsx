@@ -6,11 +6,10 @@ import { Toaster } from "@/components/ui/sonner"
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'PróSiga',
+  description: 'Sistema de Gerenciamento Acadêmico',
   icons: {
-    icon: '/icon.svg',
+    icon: '/icon.png',
   },
 }
 
