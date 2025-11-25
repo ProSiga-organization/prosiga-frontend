@@ -105,12 +105,11 @@ export function TeacherDashboard() {
             {classes.map((classItem) => (
                 <Card
                 key={classItem.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer group"
                 >
                 <CardHeader>
                     <div className="flex items-start justify-between mb-2">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-600 transition-colors">
-                        <span className="text-lg font-bold text-blue-600 group-hover:text-white transition-colors">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <span className="text-lg font-bold text-blue-600">
                             {classItem.disciplina.codigo.substring(0, 3)}
                         </span>
                     </div>

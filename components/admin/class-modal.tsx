@@ -52,9 +52,25 @@ export function ClassModal({ open, onOpenChange, classData, onSuccess }: ClassMo
           fetch(`${baseUrl}/periodos-letivos/`, { headers }),
         ])
 
-        if (subjRes.ok) setSubjects(await subjRes.json())
-        if (teachRes.ok) setTeachers(await teachRes.json())
-        if (perRes.ok) setPeriods(await perRes.json())
+        if (!subjRes.ok) {
+          console.error("Erro ao buscar disciplinas:", await subjRes.text())
+          toast.error("Erro ao carregar disciplinas.")
+          return
+        }
+        if (!teachRes.ok) {
+          console.error("Erro ao buscar professores:", await teachRes.text())
+          toast.error("Erro ao carregar professores.")
+          return
+        }
+        if (!perRes.ok) {
+          console.error("Erro ao buscar períodos:", await perRes.text())
+          toast.error("Erro ao carregar períodos letivos.")
+          return
+        }
+
+        setSubjects(await subjRes.json())
+        setTeachers(await teachRes.json())
+        setPeriods(await perRes.json())
 
       } catch (error) {
         console.error("Erro ao carregar listas", error)

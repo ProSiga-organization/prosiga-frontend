@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Download, FileText, Check, Plus, X, Bell, Pencil, Trash2, Loader2 } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { ClassReportModal } from "@/components/dashboard/class-report-modal"
@@ -256,6 +257,32 @@ export default function TeacherClassPage() {
     }
   }
 
+  const handleUpdateStatus = async (matriculaAluno: string, novoStatus: string) => {
+    if (!token) return
+    
+    try {
+      const response = await fetch(`${apiBaseUrl}/matriculas/${classId}/${matriculaAluno}`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: novoStatus })
+      })
+
+      if (!response.ok) throw new Error()
+      
+      toast.success("Status atualizado")
+      // Atualiza estado local
+      setMatriculas(prev => prev.map(m => 
+        m.aluno.matricula === matriculaAluno ? { ...m, status: novoStatus } : m
+      ))
+
+    } catch (error) {
+      toast.error("Erro ao atualizar status.")
+    }
+  }
+
   // --- Relatórios (Download) ---
   const handleDownload = async (type: 'csv' | 'pdf') => {
     if (!token) return
@@ -433,6 +460,7 @@ export default function TeacherClassPage() {
                         ))}
 
                         <th className="text-center py-3 px-4 font-medium text-slate-600 w-24 bg-slate-50">Nota Final</th>
+                        <th className="text-center py-3 px-4 font-medium text-slate-600 w-32 bg-slate-50">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -476,6 +504,23 @@ export default function TeacherClassPage() {
                               onBlur={(e) => handleUpdateFinalGrade(mat.aluno.matricula, e.target.value)}
                               placeholder="-"
                             />
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-3 px-4 text-center bg-slate-50">
+                            <Select 
+                              value={mat.status} 
+                              onValueChange={(value) => handleUpdateStatus(mat.aluno.matricula, value)}
+                            >
+                              <SelectTrigger className="w-32 mx-auto h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="EM_CURSO">Em Curso</SelectItem>
+                                <SelectItem value="APROVADO">Aprovado</SelectItem>
+                                <SelectItem value="REPROVADO">Reprovado</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </td>
                         </tr>
                       ))}
