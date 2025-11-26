@@ -51,8 +51,9 @@ export function ClassManagement() {
       const token = localStorage.getItem("authToken")
       if(!token) return
 
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
       try {
-        const res = await fetch("http://localhost:8000/periodos-letivos/", {
+        const res = await fetch(`${apiBaseUrl}/periodos-letivos/`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (res.ok) {
@@ -72,6 +73,7 @@ export function ClassManagement() {
     const token = localStorage.getItem("authToken")
     if(!token || !selectedPeriodId) return
 
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -79,7 +81,7 @@ export function ClassManagement() {
       if (searchTerm) params.append("codigo_disciplina", searchTerm)
 
       // ATUALIZAÇÃO: Usa o novo endpoint para ADMIN
-      const res = await fetch(`http://localhost:8000/turmas/admin/list?${params.toString()}`, {
+      const res = await fetch(`${apiBaseUrl}/turmas/admin/list?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
@@ -116,8 +118,9 @@ export function ClassManagement() {
     if(!confirm("Tem certeza?")) return
     const token = localStorage.getItem("authToken")
     
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     try {
-        const res = await fetch(`http://localhost:8000/turmas/${id}`, {
+        const res = await fetch(`${apiBaseUrl}/turmas/${id}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` }
         })

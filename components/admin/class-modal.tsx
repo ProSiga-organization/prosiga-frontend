@@ -43,7 +43,7 @@ export function ClassModal({ open, onOpenChange, classData, onSuccess }: ClassMo
     const fetchData = async () => {
       const token = localStorage.getItem("authToken")
       const headers = { Authorization: `Bearer ${token}` }
-      const baseUrl = "http://localhost:8000"
+      const baseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
 
       try {
         const [subjRes, teachRes, perRes] = await Promise.all([
@@ -110,10 +110,11 @@ export function ClassModal({ open, onOpenChange, classData, onSuccess }: ClassMo
     setLoading(true)
     const token = localStorage.getItem("authToken")
 
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     try {
       const url = classData
-        ? `http://localhost:8000/turmas/${classData.id}`
-        : "http://localhost:8000/turmas/"
+        ? `${apiBaseUrl}/turmas/${classData.id}`
+        : `${apiBaseUrl}/turmas/`
       
       const method = classData ? "PUT" : "POST"
 
