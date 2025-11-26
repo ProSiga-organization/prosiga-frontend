@@ -66,11 +66,12 @@ export function PeriodModal({ open, onOpenChange, period, onSuccess }: PeriodMod
     e.preventDefault()
     setLoading(true)
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     
     try {
       const url = period 
-        ? `http://localhost:8000/periodos-letivos/${period.id}`
-        : "http://localhost:8000/periodos-letivos/"
+        ? `${apiBaseUrl}/periodos-letivos/${period.id}`
+        : `${apiBaseUrl}/periodos-letivos/`
       
       const method = period ? "PUT" : "POST"
 

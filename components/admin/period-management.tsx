@@ -28,11 +28,12 @@ export function PeriodManagement() {
 
   const fetchPeriods = async () => {
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     if (!token) return
 
     setLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/periodos-letivos/", {
+      const response = await fetch(`${apiBaseUrl}/periodos-letivos/`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (response.ok) {
@@ -68,8 +69,9 @@ export function PeriodManagement() {
     if (!confirm("Tem certeza? Isso pode afetar turmas vinculadas.")) return
 
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     try {
-      const response = await fetch(`http://localhost:8000/periodos-letivos/${id}`, {
+      const response = await fetch(`${apiBaseUrl}/periodos-letivos/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -85,10 +87,11 @@ export function PeriodManagement() {
   // --- Funções de Relatório ---
   const handleReport = async (periodId: number, type: 'ocupacao' | 'turmas-professor') => {
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     const endpoint = type === 'ocupacao' ? 'relatorio-ocupacao' : 'relatorio-turmas-professor'
     
     try {
-      const response = await fetch(`http://localhost:8000/periodos-letivos/${periodId}/${endpoint}`, {
+      const response = await fetch(`${apiBaseUrl}/periodos-letivos/${periodId}/${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
