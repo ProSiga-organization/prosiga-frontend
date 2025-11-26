@@ -24,6 +24,8 @@ export function RegisterForm() {
     setIsLoading(true)
     setError(null)
 
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+
     if (formData.password !== formData.confirmPassword) {
       setError("As senhas não coincidem.")
       setIsLoading(false)
@@ -32,7 +34,7 @@ export function RegisterForm() {
 
     try {
       // Chama o endpoint de "primeiro-acesso" do backend principal
-      const response = await fetch("http://localhost:8000/usuarios/primeiro-acesso", {
+      const response = await fetch(`${apiBaseUrl}/usuarios/primeiro-acesso`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
