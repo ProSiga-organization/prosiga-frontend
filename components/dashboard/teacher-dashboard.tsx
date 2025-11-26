@@ -38,11 +38,12 @@ export function TeacherDashboard() {
       if (!token) return // Redirecionar se necessário
 
       const headers = { Authorization: `Bearer ${token}` }
-      const apiBaseUrl = "http://localhost:8000"
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+      const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
 
       try {
         // 1. Buscar dados do professor
-        const meRes = await fetch("http://localhost:8001/login/me", { headers })
+        const meRes = await fetch(`${authApiUrl}/login/me`, { headers })
         if (meRes.ok) {
             setTeacher(await meRes.json())
         }

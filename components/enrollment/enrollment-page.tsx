@@ -102,7 +102,8 @@ export function EnrollmentPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  const apiBaseUrl = "http://localhost:8000"
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+  const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
   const token = typeof window !== 'undefined' ? localStorage.getItem("authToken") : null
 
   // Hook inicial para buscar períodos

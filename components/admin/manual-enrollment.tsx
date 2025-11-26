@@ -51,7 +51,8 @@ export function ManualEnrollment() {
   const [processing, setProcessing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const apiBaseUrl = "http://localhost:8000"
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+  const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
 
   // Busca de Alunos
   useEffect(() => {

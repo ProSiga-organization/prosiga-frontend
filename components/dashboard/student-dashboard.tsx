@@ -153,7 +153,8 @@ export function StudentDashboard() {
       }
 
       const headers = { Authorization: `Bearer ${token}` }
-      const apiBaseUrl = "http://localhost:8000"
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+      const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
 
       try {
         const [alunoRes, iraRes, semestreRes, matriculasRes, avisosRes] = await Promise.all([
@@ -194,10 +195,11 @@ export function StudentDashboard() {
 
   const handleDownloadHistory = async () => {
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     if (!token) return
 
     try {
-      const response = await fetch("http://localhost:8000/usuarios/me/historico-pdf", {
+      const response = await fetch(`${apiBaseUrl}/usuarios/me/historico-pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 

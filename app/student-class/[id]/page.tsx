@@ -137,7 +137,8 @@ export default function StudentClassPage() {
   const [isTrancando, setIsTrancando] = useState(false)
 
   const token = typeof window !== 'undefined' ? localStorage.getItem("authToken") : null
-  const apiBaseUrl = "http://localhost:8000"
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+  const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
 
   useEffect(() => {
     if (!classId || !token) {
@@ -221,8 +222,8 @@ export default function StudentClassPage() {
   const [aluno, setAluno] = useState<Aluno | null>(null)
   useEffect(() => {
     const fetchAluno = async () => {
-      if (token) {
-        const res = await fetch("http://localhost:8001/login/me", {
+      if (token && authApiUrl) {
+        const res = await fetch(`${authApiUrl}/login/me`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (res.ok) setAluno(await res.json())

@@ -97,7 +97,8 @@ export default function TeacherClassPage() {
   // Controle de Edição de Notas (para mostrar feedback visual)
   const [savingGrades, setSavingGrades] = useState<Record<string, boolean>>({})
 
-  const apiBaseUrl = "http://localhost:8000"
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
+  const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
   const token = typeof window !== 'undefined' ? localStorage.getItem("authToken") : null
 
   // --- Carregamento de Dados ---
