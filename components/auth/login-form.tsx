@@ -21,6 +21,8 @@ export function LoginForm() {
     setIsLoading(true)
     setError(null)
 
+    const authApiUrl = process.env.NEXT_PUBLIC_API_AUTH_URL
+
     try {
       // A API de login (prosiga-login/app/login/router.py) espera 
       // dados de formulário (Form()).
@@ -28,8 +30,8 @@ export function LoginForm() {
       formData.append("username", email)
       formData.append("password", password)
 
-      // 1. Chamar a API de login na porta 8001
-      const loginResponse = await fetch("http://localhost:8001/login/", {
+      // 1. Chamar a API de login
+      const loginResponse = await fetch(`${authApiUrl}/login/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -48,7 +50,7 @@ export function LoginForm() {
       localStorage.setItem("authToken", accessToken)
 
       // 2. Com o token, chamar a API /me do *mesmo* serviço de login
-      const meResponse = await fetch("http://localhost:8001/login/me", {
+      const meResponse = await fetch(`${authApiUrl}/login/me`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
