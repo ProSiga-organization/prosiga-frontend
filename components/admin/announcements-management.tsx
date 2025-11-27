@@ -31,9 +31,10 @@ export function AnnouncementsManagement() {
     const token = localStorage.getItem("authToken")
     if(!token) return
 
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     setLoading(true)
     try {
-        const res = await fetch("http://localhost:8000/avisos/admin/list", {
+        const res = await fetch(`${apiBaseUrl}/avisos/admin/list`, {
             headers: { Authorization: `Bearer ${token}` }
         })
         if(res.ok) setAvisos(await res.json())
@@ -61,8 +62,9 @@ export function AnnouncementsManagement() {
   const handleDelete = async (id: number) => {
     if(!confirm("Excluir este aviso?")) return
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     try {
-        const res = await fetch(`http://localhost:8000/avisos/${id}`, {
+        const res = await fetch(`${apiBaseUrl}/avisos/${id}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` }
         })

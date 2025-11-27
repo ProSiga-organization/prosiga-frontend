@@ -31,8 +31,9 @@ export function AnnouncementModal({ open, onOpenChange, announcement, onSuccess 
     if(!open) return
     const fetchCourses = async () => {
       const token = localStorage.getItem("authToken")
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
       try {
-        const res = await fetch("http://localhost:8000/cursos/", {
+        const res = await fetch(`${apiBaseUrl}/cursos/`, {
             headers: { Authorization: `Bearer ${token}` }
         })
         if(res.ok) setCourses(await res.json())
@@ -66,11 +67,12 @@ export function AnnouncementModal({ open, onOpenChange, announcement, onSuccess 
 
     setLoading(true)
     const token = localStorage.getItem("authToken")
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     
     try {
         const url = announcement 
-            ? `http://localhost:8000/avisos/${announcement.id}`
-            : "http://localhost:8000/avisos/curso"
+            ? `${apiBaseUrl}/avisos/${announcement.id}`
+            : `${apiBaseUrl}/avisos/curso`
         
         const method = announcement ? "PUT" : "POST"
         
