@@ -46,8 +46,9 @@ export default function UsersPage() {
     const formData = new FormData()
     formData.append("file", file)
 
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BACKEND_URL
     try {
-      const response = await fetch("http://localhost:8000/usuarios/upload-csv", {
+      const response = await fetch(`${apiBaseUrl}/usuarios/upload-csv`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${authToken}`,
