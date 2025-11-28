@@ -4,28 +4,31 @@ import { useEffect } from 'react'
 import Script from 'next/script'
 
 export function VLibrasWidget() {
-  useEffect(() => {
-    const initVLibras = () => {
-      if (window.VLibras) {
-        new window.VLibras.Widget('https://vlibras.gov.br/app')
-      }
+  const handleScriptLoad = () => {
+    if (typeof window !== 'undefined' && window.VLibras) {
+      new window.VLibras.Widget('https://vlibras.gov.br/app')
     }
-
-    if (document.readyState === 'complete') {
-      initVLibras()
-    } else {
-      window.addEventListener('load', initVLibras)
-      return () => window.removeEventListener('load', initVLibras)
-    }
-  }, [])
+  }
 
   return (
     <>
       <Script
         src="https://vlibras.gov.br/app/vlibras-plugin.js"
         strategy="afterInteractive"
+        onLoad={handleScriptLoad}
       />
-      <div vw-access-button="true" className="enabled" />
+      <div 
+        dangerouslySetInnerHTML={{
+          __html: `
+            <div vw class="enabled">
+              <div vw-access-button class="active"></div>
+              <div vw-plugin-wrapper>
+                <div class="vw-plugin-top-wrapper"></div>
+              </div>
+            </div>
+          `
+        }}
+      />
     </>
   )
 }
