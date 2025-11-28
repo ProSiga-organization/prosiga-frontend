@@ -120,10 +120,7 @@ export function LoginForm() {
         {isLoading ? "Entrando..." : "Entrar"}
       </Button>
 
-      <div className="text-center space-y-2 pt-4">
-        <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 block">
-          Esqueceu sua senha?
-        </Link>
+      <div className="text-center pt-4">
         <Link href="/auth/register" className="text-sm text-slate-600 hover:text-slate-700 block">
           Não tem conta? <span className="text-blue-600">Realizar primeiro acesso</span>
         </Link>
